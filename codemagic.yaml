@@ -1,0 +1,72 @@
+# Codemagic CI — 大蓝海 Flutter 版 iOS 构建管线
+#
+# 由 H5/Capacitor 版 codemagic.yaml 改写而来：
+# - 去掉 npm install / cap add ios / cap sync / @capacitor/assets 等 Capacitor 步骤
+# - 去掉 PlistBuddy 注入 Info.plist 合规项（已直接写入 ios/Runner/Info.plist）
+# - 构建命令改为 flutter build ipa
+#
+# 前置条件：
+# 1. Codemagic 已配置 App Store Connect 集成（集成名「大蓝海」）
+# 2. 签名物料（App Store 分发证书 + Provisioning Profile）已上传到 Codemagic
+# 3. Team ID: 5QLTMB4JGC
+
+workflows:
+  ios-release:
+    name: iOS Release Build
+    instance_type: mac_mini_m1
+    max_build_duration: 40
+    integrations:
+      app_store_connect: 大蓝海
+    environment:
+      vars:
+        BUNDLE_ID: com.kaitengguan.dalanhai
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.kaitengguan.dalanhai
+    scripts:
+      - name: Install Flutter dependencies
+        script: flutter pub get
+
+      - name: Set up code signing
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          # 获取 Provisioning Profile 名称（由 xcode-project use-profiles 自动匹配）
+          PP_NAME=$(xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -showBuildSettings 2>/dev/null \
+            | grep "PROVISIONING_PROFILE_SPECIFIER" | head -1 | awk -F'= ' '{print $2}' | tr -d ' \r')
+          if [ -z "$PP_NAME" ]; then PP_NAME="dalanhai"; fi
+
+          # 生成 export_options.plist（App Store 分发）
+          cat > export_options.plist << PLIST_EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>5QLTMB4JGC</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.kaitengguan.dalanhai</key>
+              <string>${PP_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST_EOF
+
+          # 构建 IPA（用 Codemagic BUILD_NUMBER 作为构建号，确保每次构建唯一）
+          flutter build ipa --release --export-options-plist=export_options.plist --build-number=$BUILD_NUMBER
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
