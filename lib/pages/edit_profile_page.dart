@@ -55,11 +55,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
     try {
       final me = await CloudApi.instance.fetchMe();
       if (!mounted) return;
+      var nickname = me.nickname.trim();
+      var avatar = me.avatar;
+      var bio = '';
+      // /api/user/me 不下发 bio（flashCaptain 早期结构），简介回显补拉
+      // /api/user/:uid/profile（v2.9.6 既有接口，含 bio）；该请求失败不阻塞
+      // 页面打开（bio 留空、沿用 me 的昵称/头像）
+      try {
+        final p = await CloudApi.instance.fetchUserProfile(me.id);
+        if (p.nickname != null && p.nickname!.trim().isNotEmpty) {
+          nickname = p.nickname!.trim();
+        }
+        final pa = p.avatar;
+        if (pa != null && pa.isNotEmpty) avatar = pa;
+        bio = (p.bio ?? '').trim();
+      } on ApiException catch (_) {
+        // 静默：编辑页仍可打开，简介留空可继续编辑
+      }
+      if (!mounted) return;
       setState(() {
         _uid = me.id;
-        _avatarKey = me.avatar;
-        _nickCtrl.text = me.nickname.trim();
-        _bioCtrl.text = (me.bio ?? '').trim();
+        _avatarKey = avatar;
+        _nickCtrl.text = nickname;
+        _bioCtrl.text = bio;
         _loading = false;
       });
     } on ApiException catch (e) {
