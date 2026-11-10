@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../pages/user_profile_page.dart';
 import '../services/cloud_api.dart';
 import '../services/cloud_models.dart';
 import '../theme/colors.dart';
@@ -228,6 +229,11 @@ class _UserListSheetState extends State<_UserListSheet> {
         final e = _list[i];
         final label = followStatusLabel(e, isFollowers: widget.isFollowers);
         return ListTile(
+          // 点头像/整行 → 他人主页（传自己的 uid 时页面自动为访客视角预览）
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => UserProfilePage(uid: e.uid)),
+          ),
           leading: Container(
             width: 40, height: 40,
             decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.ocean),
