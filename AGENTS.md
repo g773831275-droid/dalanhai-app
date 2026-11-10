@@ -17,7 +17,7 @@
 | **著作权人** | **杭州浩海星辰数字科技有限公司**（软著以企业名义申请，所有材料署名必须统一，不得出现个人姓名） |
 | Bundle ID | `com.kaitengguan.dalanhai`（双平台统一） |
 | 商业模式 | App 内零收费、无 IAP。盈利靠「看广告补签」+ 客服微信引流 |
-| 当前阶段 | P0~P5 代码完成 + UI 与 H5 1:1 对齐；**Flutter 版功能全量落地（岛屿/打卡/船长/UGC/集市 + 头像上传）**；**后端 v2.9.6 已上线生产**（v2.7 港口七接口 → v2.9.4 多岛屿分发 → v2.9.5 头像昵称审核 → **v2.9.6 社交关系全套：关注/粉丝/他人主页/双向拉黑/航级占位/黑名单管理/举报用户**）；**Flutter 端 v2.9.6 全量落地**（他人主页/日志详情关注按钮+···菜单/船长页双 Tab+入口收拢/全局关注状态）；**Flutter 网络层域名统一锁定 `https://api.idalanhai.com`**（session_store 单点管理，设备旧缓存自动清除）；2026-11-10 修复船长页打卡统计联动断层（cloudTotals 全历史口径）；软著补正材料已就绪待提交（~11/20 截止）；Apple 个人→组织迁移进行中（案例 103004430882）；⚠️ dalanhai-app/（Flutter）**还没有 git 仓库**，所有改动未 commit |
+| 当前阶段 | P0~P5 代码完成 + UI 与 H5 1:1 对齐；**Flutter 版功能全量落地（岛屿/打卡/船长/UGC/集市 + 头像上传）**；**后端 v2.9.7 已上线生产**（v2.7 港口七接口 → v2.9.4 多岛屿分发 → v2.9.5 头像昵称审核 → v2.9.6 社交关系全套 → **v2.9.7 评论系统 v2：删帖级联/删评论/评论点赞/子评论 reply_to_comment_id/atUserIds 预埋/@用户搜索**）；**Flutter 端 v2.9.7 全量落地**（评论区分层组件 comment_section：抖音式子回复折叠/长按菜单/点赞/回复关系头部标签/置灰@前缀预置/删帖入口；船长页+他人主页下拉刷新；关注粉丝计数全局同步）；**Flutter 网络层域名统一锁定 `https://api.idalanhai.com`**（session_store 单点管理，设备旧缓存自动清除）；2026-11-10 修复船长页打卡统计联动断层（cloudTotals 全历史口径）；软著补正材料已就绪待提交（~11/20 截止）；Apple 个人→组织迁移进行中（案例 103004430882）；✅ dalanhai-app/ 已 git init（2026-11-10，本地 master 领先远程，**待 user push**）；⚠️ grandblue-server/ 仍无 git 仓库 |
 
 H5 原版位置（参考用，不要再改）：`../dalanhai/index.html`（约 1542 行 CSS + JS 单文件）
 
@@ -106,6 +106,7 @@ dalanhai-app/
 │       ├── follow_list_sheet.dart      # v2.9.6：关注/粉丝列表底部弹窗（仅展示）+ 黑名单弹窗（带解除）
 │       ├── cloud_post_card.dart        # v2.9.6：公共日志卡片（样式=港口流 _CloudCard；他人主页/船长页双 Tab 复用；onAvatarTap 头像跳主页）
 │       ├── profile_sections.dart       # v2.9.6：主页公共区块（ProfileStatsGrid 统计栏两行五项 + ProfileCertGallery 证书横滚 + ProfileSectionTitle），他人主页与船长页共用保证样式一致
+│       ├── comment_section.dart        # v2.9.7：评论区全套组件（分层评论树/子回复折叠展开/长按菜单/点赞防抖/回复关系头部标签/_stripReplyPrefix/@高亮），改评论逻辑前必读 §6 comment_section 条目
 │       └── service_dialog.dart         # v2.9.6：showServiceDialog 联系船务长二维码弹窗 + showInfoDialog 通用提示弹窗（账号设置页用）
 ├── test/
 │   ├── widget_test.dart                # 旧冒烟测试（「打卡」用例已过时：未适配云端登录闸门，失败非产品 bug）
@@ -190,6 +191,7 @@ dalanhai-app/
 | 软著材料 | 2026-09-16 首版 → **2026-10-21 补正版**：补正通知书（流水号 2026R11L3218139）两缺陷已修——①软件名改「大蓝海移动应用软件」②手册补 23 张界面截图（图3-1~图9-5，统一 207×450pt，4 张登录页按 auth_page.dart 真实渲染绘制+真机状态栏裁切）；60 页、纯文字页全部 ≥30 行；12 项自动审计全过 |
 | **2026-11-09 冲刺**（全部模拟器 adb 自动化 E2E 验收，逐项日志+截图双重确认） | ①**发帖定位链路终局修复**：`_onTabSelected` 改 `appTabIndex.value=i` 单一向源（旧版只 setState 导致第二遍发帖不切 tab）；定位弃用 GlobalKey（ctx 恒 null 死路）→ idx==0 直接 `animateTo(0)` + 高亮走 postId 比较；②**多岛屿分发**：后端 `post_island` 多对多表（存量回填 + ON DELETE CASCADE）+ composer 传全部勾选岛 `islands[]`；③**多图网格+大图预览器**（零新增依赖自研）；④**全岛打卡按钮置灰**（done 参与禁用 + 守卫只信云端日期——模拟器 UTC 时区与云端 Asia/Shanghai 偏移会让本地镜像误报已打卡）；⑤**岛屿页分享日志发帖闭环**：ComposerPage +`initialTags` 预选岛标签 → 成功 popUntil 回港口 + 分类信号跟随最终帖子的岛标签（`kPortIslandFilterSignal`；⚠️ 两套岛屿 key 命名空间：UI chip=本地 id `qingxin/zaoshui`，后端=`clear-mind/early-sleep`，发信号必须 `cloudIslandToLocal` 转换）；⑥**底部发布入口固定落【全部+最新】**（`kPortFeedAlignSignal` broadcast Stream + 未匹配保留 pending 重试 3 次×700ms 补偿）+ **CloudFeedLoader 代际守卫 `_gen`**（迟到的旧筛选响应覆盖新列表 → 过期丢弃）；⑦**船长页头像修改全流程**（前端裁剪/压缩/直传 + 后端 PATCH nickname 补 Green 文本审核 + profile 头像 OSS HEAD 二次校验）；⑧**统一表单报错规范**（§7.1）；⑨**头像重置 bug 修复**（DataStore.login 重建 Captain 丢 avatar → +updateNickname 只改名 + 冷启动/登录 fetchMe 回填） |
 | **2026-11-10 冲刺（v2.9.6 社交 + 统计联动 + 环境治理）** | ①**后端 v2.9.6 已上线生产**（备份锚点 index.js.bak-v2.9.5 + grandblue.db.bak-20261110）：users 补 bio/sail_level、新表 user_follow/app_settings、reports.type+user；接口 9+ 新增（follow toggle/follow-status/followers/following/user profile 全历史统计+证书派生/user posts/liked-posts 自动过滤拉黑/unblock/blocklist/admin settings 航级开关/admin sail-level）；profile bio 编辑（送审）；report type=user；**双向拉黑 isBlockedPair 全站拦截**（详情/点赞/评论/关注/主页 404/403）+ 拉黑瞬间双向清空关注；自测 test-social-api.sh 42 PASS + 全量回归 181 PASS（4 失败=频控/清理时序既有项）；②**Flutter 社交全量**：他人主页/自身公开预览双视角、日志详情关注按钮+···菜单（拉黑标准文案二次确认）、船长页双 Tab（我的日志/点赞的日志）+ 证书横滚 + 统计栏、FollowState 全局关注状态单例、航级标签 UI 占位（后台开关 enable_sail_level_tag 控制）、头像点击全站跳主页；③**打卡统计联动修复**：v2.9.6 重写船长页后统计成一次性快照+无 DataStore 监听 → IndexedStack 常驻卡死——CaptainTab 订阅 DataStore 600ms 去抖重拉 profile；**口径统一**：checkins 镜像只有 21 天窗口会缩水 → 补解析后端 total（全历史）+ AppData.cloudTotals 持久化 + totalDaysOf 云端优先（岛屿卡片/航海报与船长页同口径）；Pixel7 实测打卡后船长页 2→3 实时更新；④**Flutter 域名统一锁定** `https://api.idalanhai.com`（session_store 单点 + 清设备旧 baseUrl 键；裸 IP 不可路由——3000 仅监听 127.0.0.1）；⑤**环境治理**：C 盘清 ~1.15G（.gradle 907M 废弃缓存——GRADLE_USER_HOME/PUB_CACHE 已迁 D:\FlutterCache；gradle wrapper 切 -bin 防膨胀；node_modules 51M 清）；⑥**release 联网阻断修复**：main/AndroidManifest.xml 补 INTERNET 权限（Flutter 新模板只给 debug/profile）；⑦**船长页入口收拢**：hero 卡片竖排双按钮（编辑资料/账号设置）+ 底部服务菜单移除收进账号设置页（三分组）+ 黑名单管理独立路由页；⑧联动回归测试 test/captain_stats_sync_test.dart 2 用例（MockClient 注入） |
+| **2026-11-10/11 冲刺（v2.9.7 评论系统 v2，全部模拟器 adb 自动化验收）** | ①**后端 v2.9.7 已上线生产**（备份锚点 index.js.bak-v2.9.6 + src/db.js.bak-v2.9.6；详见 §11.4 v2.9.7 增量）：评论/子评论/评论点赞/删评论/删帖级联/@用户搜索全套接口 + comments 三列迁移 + comment_likes 表；自测 test-v297-comments.sh 全过；②**Flutter 评论区组件** lib/widgets/comment_section.dart：分层评论树（子回复缩进、场景B头部「A ↩ B」纤细箭头关系标签、正文剥离历史预填 @前缀 `_stripReplyPrefix`）、长按 500ms 菜单（复制/删除按权限显隐）、❤️点赞防抖、子回复折叠（默认前2条+「查看余下X条回复」+转圈loading+收起回复）、【作者】标识、统一日期、空态「暂无评论，快来抢沙发」；③**回复输入框**：预置 @昵称置灰固定前缀（prefix Widget 内部不可编辑、空文本退格整体删除 `_commentFocus.onKeyEvent`）、hint 回复@xxx、空内容置灰、@用户搜索弹窗（头像+模糊搜索，删字到光标前紧邻单独@才唤起——半角/全角＠兼容，删字自动收起）；④**删帖**：作者···菜单+二次确认+后端级联清理+`kPostDeletedSignal` 船长页同步；⑤**计数/刷新对齐**：`kCommentCountChangedSignal` 船长页同步评论计数、船长页+他人主页 RefreshIndicator 下拉刷新、评论点赞 FollowState 联动；⑥dalanhai-app git init（本地 master 15+ commit 待 push）；grandblue-server 仍无 git |
 
 ### 🟡 待用户操作（按优先级）
 
@@ -286,6 +288,21 @@ dalanhai-app/
 - 船长页「重置本地数据」确认后执行 `store.clearAll()` + **`await Prefs.clearAll()`**（清 data/used_names/**eula** 三键）
 - 只清 DataStore 不清 Prefs 的话，重置后点「发布」不会再弹 EULA —— 这是已修过的 bug，别退化
 - EULA 逻辑：点发布 → `Prefs.isEulaAccepted()` 为 false → 弹协议 → 同意后才进发帖页
+
+### `lib/widgets/comment_section.dart`（v2.9.7 评论区组件，改评论逻辑前必读）
+- 一级评论列表 + `_ReplyThread`（每条一级评论的子回复线程：list/total/expanded/loading）
+- **预热**：一级评论加载后并发拉前 2 条子回复（折叠展示）；展开按钮「查看余下 X 条回复」X=total−2；展开 size50 去重合并；`expanded && loadedAll` → 「收起回复」（⚠️ 外层渲染条件含 `t.total > 2` 分支，漏了会导致收起按钮消失——已修过的 bug）
+- 长按 500ms → 复制/删除评论（权限=本人∥帖主∥父一级评论作者，二次确认）
+- 点赞防抖 `_likeBusy`；`insertComment/insertReply` 发送后实时插入 + `Scrollable.ensureVisible` 定位
+- 回复关系排版（抖音对齐）：头部「A昵称 ↩ B昵称」纤细箭头标签（Icons.reply 翻转），**头部昵称点击跳主页、正文不渲染系统 @前缀**（`_stripReplyPrefix` 剥离历史预填数据）；用户手敲 @ 高亮纯样式无点击
+- 输入框预置 @：detail 页 `_replyPrefix`（灰色 prefix Widget，内部不可编辑，空文本退格整体删除——`_commentFocus.onKeyEvent`）；发送 content 只含用户输入，关系由 replyToCommentId 表达
+
+### 全局信号补充（v2.9.7，cloud_feed.dart）
+| 信号 | 方向 | 说明 |
+|---|---|---|
+| `kPostDeletedSignal` | 详情删帖 → captain_tab 重拉列表 | 港口流本地移除走 `loader.removePostById` |
+| `kCommentCountChangedSignal` | 详情发/删评论 → captain_tab 重拉 | 船长页评论计数与详情/港口对齐 |
+| 详情页 `_onReplyTap` | 💬 → 输入框预置 @置灰前缀 | 见上 comment_section 条目 |
 
 ### `lib/theme/colors.dart`
 - 12 个渐变 + 20+ 颜色
@@ -555,7 +572,7 @@ flutter build ipa
 | nginx | `/etc/nginx/conf.d/api.idalanhai.com.conf`；证书 `/etc/nginx/ssl/api.idalanhai.com.{crt,key}`（Let's Encrypt ec-256，acme.sh cron 自动续期 ~2027-02-05） |
 | Node 版本 | v20.20.2（Alibaba Cloud Linux 3） |
 | 数据库 | SQLite `./grandblue.db`（**18 张表**：14 + v2.9.6 user_follow/app_settings，users 补 bio/sail_level，reports 重建含 user 类型；生产库含测试账号 prodv_*×3 无害，回滚备份锚点 grandblue.db.bak-20261110） |
-| 部署状态 | ✅ **v2.9.6 已上线**（2026-11-10；改代码后 scp 对应文件 + pm2 restart 即可，⚠️ 严禁上传 grandblue.db；本地验证 curl 必须 `export no_proxy=127.0.0.1,localhost`，生产验证走 `ssh → 127.0.0.1:3000`——安全组未放行 3000 公网） |
+| 部署状态 | ✅ **v2.9.7 已上线**（2026-11-10 评论系统 v2；改代码后 scp 对应文件 + pm2 restart 即可，⚠️ 严禁上传 grandblue.db；本地验证 curl 必须 `export no_proxy=127.0.0.1,localhost`，生产验证走 `ssh → 127.0.0.1:3000`——安全组未放行 3000 公网） |
 | SSH 通道 | 本机 `~/.ssh/id_ed25519`（workbuddy-deploy@dalanhai）已授权，可全自动 ssh/scp |
 | 调试模式 | 变量名 **`DEV_MODE`**（1=验证码回显；**服务器必须 =0** 已确认；⚠️ `.env.example` 里曾误写 `DEV_GKLH`，复制模板后注意改对变量名） |
 
@@ -606,6 +623,8 @@ pm2 stop grandblue       # 停止服务
 ```
 
 ### 11.4 接口清单与连通性（v2.9.6，2026-11-10）
+
+> **v2.9.7 增量（评论系统 v2，2026-11-10 已上线，备份锚点 index.js.bak-v2.9.6 + src/db.js.bak-v2.9.6）**：comments 表迁移 +`root_comment_id`（NULL=一级评论）/`reply_to_comment_id`（被回复评论 id）/`at_user_ids`（@预埋 JSON，通知后置）三列 + `comment_likes` 表（PK comment_id+user_id）；新接口 `DELETE /api/posts/:postId`（仅作者，事务级联清 comments/comment_likes/likes/post_island/reports）、`DELETE /api/comments/:commentId`（权限=评论本人∥帖主∥父一级评论作者；删一级连带全部子评论；posts.comment_count 同步扣减）、`POST /api/comments/:commentId/like`（toggle）、`GET /api/comments/:commentId/replies`（子评论分页，时间正序）、`GET /api/users/search?q=`（昵称模糊 ≤10，排除自己+双向拉黑）；`POST /api/posts/:id/comment` 扩展入参 `replyToCommentId`+`atUserIds`（≤10 去重、过滤拉黑），**返回新评论 JSON+commentCount**（breaking：旧版返回帖子对象）；评论列表只返回一级评论（root IS NULL），条目含 replyCount/likeCount/liked/isPostAuthor/atUserIds/replyToNickname/replyToUid；统一序列化 `commentJSON`。自测脚本 `test-v297-comments.sh`。
 
 > **v2.9.6 增量（社交关系，全部已上线）**：`POST /api/user/follow`（幂等 toggle，双向拉黑 403，不能关注自己）、`GET /api/user/follow-status?targetUid=N`（following/followedBy）、`GET /api/user/:uid/followers|following`（分页，条目含 followedByViewer）、`GET /api/user/:uid/profile`（uid/nickname/avatar/bio/sailLevel/showSailLevelTag/isSelf/following/stats{posts,following,followers,totalCheckins,maxStreak}/certificates[]——双向拉黑或用户不存在一律 404「用户不存在」）、`GET /api/user/:uid/posts`（pass 帖分页）、`GET /api/user/liked-posts`（点赞列表，自动剔除双向拉黑用户帖子）、`POST /api/user/unblock`、`GET /api/user/blocklist`（分页）、`POST /api/admin/settings`（key 白名单 enable_sail_level_tag，value 归一化 1/0）、`POST /api/admin/user/sail-level`（手工赋航级 ≤20 字，无计算逻辑）；`POST /api/user/profile` 增 bio（≤100 字送审，空串清空）；`POST /api/report` type 增 user；`POST /api/user/block` 拉黑时**双向清空关注关系**（返回 clearedFollows）+ 全站双向拦截（isBlockedPair：详情/点赞/评论/关注/主页统一 404/403）；`blockedIdsOf` 双向化（我拉黑的 ∪ 拉黑我的，UNION）。自测脚本：`test-social-api.sh`（42 用例，独立测试库自启服务）、`verify-prod-v296.sh`（生产 21 项，BASE 指 127.0.0.1）。以下为 v2.6~v2.7 存量清单：
 
