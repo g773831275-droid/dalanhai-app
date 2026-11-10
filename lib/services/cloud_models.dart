@@ -124,6 +124,7 @@ class CloudComment {
     this.rootCommentId,
     this.replyToCommentId,
     this.replyToNickname,
+    this.replyToUid,
     this.isPostAuthor = false,
     this.atUserIds = const [],
   });
@@ -139,6 +140,7 @@ class CloudComment {
         rootCommentId: (j['rootCommentId'] as num?)?.toInt(),
         replyToCommentId: (j['replyToCommentId'] as num?)?.toInt(),
         replyToNickname: j['replyToNickname'] as String?,
+        replyToUid: (j['replyToUid'] as num?)?.toInt(),
         isPostAuthor: (j['isPostAuthor'] as bool?) ?? false,
         atUserIds: ((j['atUserIds'] as List<dynamic>?) ?? const [])
             .map((e) => (e as num).toInt())
@@ -166,6 +168,9 @@ class CloudComment {
   /// 场景B（回复的是另一条子评论）▶ 后 @昵称；场景A 为 null
   final String? replyToNickname;
 
+  /// 场景B：被回复人 uid（头部关系标签跳主页用）
+  final int? replyToUid;
+
   /// 评论人是否为帖子作者（渲染【作者】轻标识）
   final bool isPostAuthor;
 
@@ -188,6 +193,7 @@ class CloudComment {
         rootCommentId: rootCommentId,
         replyToCommentId: replyToCommentId,
         replyToNickname: replyToNickname,
+        replyToUid: replyToUid,
         isPostAuthor: isPostAuthor,
         atUserIds: atUserIds,
       );

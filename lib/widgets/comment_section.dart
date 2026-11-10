@@ -23,7 +23,6 @@ class CommentSection extends StatefulWidget {
     required this.postAuthorUid,
     required this.myUid,
     required this.onReplyTap,
-    required this.onNicknameTap,
     required this.onCountChanged,
   });
 
@@ -35,9 +34,6 @@ class CommentSection extends StatefulWidget {
 
   /// 点 💬：回调目标评论（详情页唤起回复输入框）
   final void Function(CloudComment target) onReplyTap;
-
-  /// 点昵称：插入 @昵称 到输入框（uid 供 atUserIds 预埋，正文 span 点击可能为 null）
-  final void Function(String nickname, int? uid) onNicknameTap;
 
   /// 帖子评论总数变化（删除评论后同步顶部计数）
   final void Function(int commentCount) onCountChanged;
@@ -407,24 +403,16 @@ class CommentSectionState extends State<CommentSection> {
     );
   }
 
-  /// 评论正文：@昵称 蓝色高亮可点击（点击 → 输入框插入 @昵称）
+  /// 评论正文：用户手敲的 @昵称 蓝色高亮（纯样式，点击不填充输入框）
   List<InlineSpan> _buildContentSpans(String content) {
     final spans = <InlineSpan>[];
     final regex = RegExp(r'@[^@\s，。！？；、]+');
     var last = 0;
     for (final m in regex.allMatches(content)) {
       if (m.start > last) spans.add(_plainSpan(content.substring(last, m.start)));
-      final tag = m.group(0)!;
-      spans.add(WidgetSpan(
-        alignment: PlaceholderAlignment.baseline,
-        baseline: TextBaseline.alphabetic,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => widget.onNicknameTap(tag, null),
-          child: Text(tag,
-              style: const TextStyle(
-                  color: AppColors.sky, fontSize: 13, height: 1.4)),
-        ),
+      spans.add(TextSpan(
+        text: m.group(0),
+        style: const TextStyle(color: AppColors.sky, fontSize: 13, height: 1.4),
       ));
       last = m.end;
     }
@@ -448,16 +436,15 @@ class CommentSectionState extends State<CommentSection> {
   }
 
   /// 昵称行：昵称 +【作者】轻标识 + [回复关系标签] + 日期。
-  /// [replyToNickname] 非 null（场景B：回复的是另一条子评论）→ 昵称右侧
-  /// 追加抖音同款纤细回复指向箭头 + 被回复昵称（点击 → 回复该用户）；
-  /// 箭头是关系标识非播放按钮，用户正文不再拼接 @前缀。
+  /// [replyToNickname]/[replyToUid] 非 null（场景B）→ 昵称右侧追加纤细回复
+  /// 指向箭头 + 被回复昵称；头部两个昵称点击均【跳转用户主页】（不填充@）。
   Widget _nameRow(CloudComment c,
-      {double fontSize = 12, String? replyToNickname}) {
+      {double fontSize = 12, String? replyToNickname, int? replyToUid}) {
     return Row(children: [
       Flexible(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => widget.onNicknameTap(c.author.displayName, c.author.uid),
+          onTap: () => _openProfile(c.author.uid),
           onLongPress: null,
           child: Text(c.author.displayName,
               maxLines: 1,
@@ -480,21 +467,21 @@ class CommentSectionState extends State<CommentSection> {
       if (replyToNickname != null) ...[
         const SizedBox(width: 4),
         // 纤细回复指向箭头（Icons.reply 水平翻转 → 指向右侧被回复人）
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => widget.onReplyTap(c),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Transform.flip(
-              flipX: true,
-              child: Icon(Icons.reply,
-                  size: fontSize + 1, color: AppColors.sub),
-            ),
-            const SizedBox(width: 2),
-            Text(replyToNickname,
+        Transform.flip(
+          flipX: true,
+          child: Icon(Icons.reply, size: fontSize + 1, color: AppColors.sub),
+        ),
+        const SizedBox(width: 2),
+        Flexible(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap:
+                replyToUid == null ? null : () => _openProfile(replyToUid),
+            child: Text(replyToNickname,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: AppColors.sub, fontSize: fontSize - 0.5)),
-          ]),
+          ),
         ),
       ],
       const Spacer(),
@@ -629,11 +616,15 @@ class CommentSectionState extends State<CommentSection> {
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 回复关系标签在头部：回复昵称 [纤细箭头 被回复昵称]（场景B）；
-              // 用户正文独立在下方，干净不带 @前缀（对齐抖音排版）
-              _nameRow(r, fontSize: 11, replyToNickname: r.replyToNickname),
+              // 回复关系标签在头部：回复昵称 [纤细箭头 被回复昵称]（场景B），
+              // 两个昵称点击均跳主页；正文剥离系统预填的 @前缀，只渲染用户原文
+              _nameRow(r,
+                  fontSize: 11,
+                  replyToNickname: r.replyToNickname,
+                  replyToUid: r.replyToUid),
               const SizedBox(height: 2),
-              Text.rich(TextSpan(children: _buildContentSpans(r.content))),
+              Text.rich(TextSpan(
+                  children: _buildContentSpans(_stripReplyPrefix(r)))),
               const SizedBox(height: 4),
               _actionRow(r),
             ],
@@ -641,6 +632,15 @@ class CommentSectionState extends State<CommentSection> {
         ]),
       ),
     );
+  }
+
+  /// 剥离历史数据正文开头的系统预填 @被回复人 前缀（渲染层处理，数据不动）；
+  /// 用户自己手敲的 @ 不受影响
+  String _stripReplyPrefix(CloudComment r) {
+    final n = r.replyToNickname;
+    if (n == null || n.isEmpty) return r.content;
+    return r.content.replaceFirst(
+        RegExp('^@${RegExp.escape(n)}\\s*'), '');
   }
 
   /// 展开/收起按钮（查看余下 X 条回复 / 转圈 / 收起回复）。

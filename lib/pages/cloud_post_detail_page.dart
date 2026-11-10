@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/cloud_api.dart';
 import '../services/cloud_feed.dart';
@@ -64,6 +65,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
   VoidCallback? _closeAtPicker; // 打开中的弹窗关闭句柄（删字时自动收起）
   int _lastTextLength = 0; // 上次文本长度（识别删除动作）
   String _hintText = '说点什么…';
+  String? _replyPrefix; // 回复预置 @昵称（置灰固定前缀，独立 Widget 不可改内部文字）
   final FocusNode _commentFocus = FocusNode();
 
   @override
@@ -73,6 +75,20 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
     _reload();
     _resolveSelf();
     _scrollCtrl.addListener(_onScroll);
+    // 回复预置 @前缀的「整体删除」：用户区文本为空时按退格 → 清除置灰前缀
+    _commentFocus.onKeyEvent = (node, event) {
+      if (event is KeyDownEvent &&
+          event.logicalKey == LogicalKeyboardKey.backspace &&
+          _commentCtrl.text.isEmpty &&
+          _replyPrefix != null) {
+        setState(() {
+          _replyPrefix = null;
+          _replyTarget = null;
+          _hintText = '说点什么…';
+        });
+      }
+      return KeyEventResult.ignored; // 不吞事件，TextField 正常处理
+    };
   }
 
   @override
@@ -227,29 +243,17 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
 
   // ── v2.9.7 评论输入（回复/@用户/发送）────────────────────
 
-  /// 💬 回复：唤起输入框（占位 回复@xxx 表明对象；
-  /// 正文不再预填 @昵称 —— 回复关系由子评论头部标签展示，正文保持干净）
+  /// 💬 回复：唤起输入框。抖音规则：输入框预置 @目标用户（置灰固定前缀，
+  /// 光标在其后；整体可删、内部文字不可改 —— prefix 为独立 Widget 非文本）；
+  /// 发送正文只含用户输入，回复关系由 replyToCommentId + 头部标签表达。
   void _onReplyTap(CloudComment target) {
     setState(() {
       _replyTarget = target;
       _atUidMap[target.author.displayName] = target.author.uid;
+      _replyPrefix = '@${target.author.displayName}';
       _hintText = '回复@${target.author.displayName}';
+      _lastTextLength = _commentCtrl.text.length;
     });
-    FocusScope.of(context).requestFocus(_commentFocus);
-  }
-
-  /// 点昵称 → 光标处插入 @昵称
-  void _onNicknameTap(String nickname, int? uid) {
-    if (uid != null) _atUidMap[nickname] = uid;
-    final sel = _commentCtrl.selection;
-    final pos = sel.baseOffset >= 0 && sel.baseOffset <= _commentCtrl.text.length
-        ? sel.baseOffset
-        : _commentCtrl.text.length;
-    final insert = '@$nickname ';
-    final text = _commentCtrl.text;
-    _commentCtrl.text = text.substring(0, pos) + insert + text.substring(pos);
-    _commentCtrl.selection = TextSelection.collapsed(offset: pos + insert.length);
-    setState(() {});
     FocusScope.of(context).requestFocus(_commentFocus);
   }
 
@@ -335,6 +339,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
         kCommentCountChangedSignal.value++; // 船长页等独立列表同步评论计数
         _commentCtrl.clear();
         _replyTarget = null;
+        _replyPrefix = null;
         _hintText = '说点什么…';
       });
       if (r.comment.isReply) {
@@ -576,7 +581,6 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                       postAuthorUid: _post.author.uid,
                       myUid: _myUid,
                       onReplyTap: _onReplyTap,
-                      onNicknameTap: _onNicknameTap,
                       onCountChanged: (int remain) {
                         setState(() => _post = _copyWith(commentCount: remain));
                         widget.loader?.applyCommentCount(_post.postId, remain);
@@ -591,7 +595,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
           ),
         ),
       ),
-      // 评论输入栏（v2.9.7：回复状态占位 / 空内容置灰 / @检测）
+      // 评论输入栏（v2.9.7.1：回复预置@置灰前缀 / 空内容置灰 / @检测）
       Container(
         color: AppColors.deep,
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom * 0),
@@ -600,6 +604,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
             GestureDetector(
               onTap: () => setState(() {
                 _replyTarget = null;
+                _replyPrefix = null;
                 _hintText = '说点什么…';
               }),
               child: const Padding(
@@ -614,7 +619,17 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
               style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 13),
               onChanged: _onCommentChanged,
               decoration: InputDecoration(
-                hintText: _hintText,
+                // 预置 @昵称：置灰固定前缀（独立 Widget，内部文字不可编辑，
+                // 光标天然在用户输入区；退格整体删除见 _commentFocus.onKeyEvent）
+                prefix: _replyPrefix == null
+                    ? null
+                    : Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: Text('$_replyPrefix ',
+                            style: const TextStyle(
+                                color: AppColors.sub, fontSize: 13)),
+                      ),
+                hintText: _replyPrefix == null ? _hintText : '',
                 hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
                 filled: true,
                 fillColor: AppColors.abyss,
