@@ -227,20 +227,13 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
 
   // ── v2.9.7 评论输入（回复/@用户/发送）────────────────────
 
-  /// 💬 回复：唤起输入框（占位 回复@xxx；回复子评论时预填 @昵称 并记录 atUser）
+  /// 💬 回复：唤起输入框（占位 回复@xxx 表明对象；
+  /// 正文不再预填 @昵称 —— 回复关系由子评论头部标签展示，正文保持干净）
   void _onReplyTap(CloudComment target) {
     setState(() {
       _replyTarget = target;
       _atUidMap[target.author.displayName] = target.author.uid;
-      final hintPrefix = '回复@${target.author.displayName}';
-      if (target.isReply) {
-        // 回复子评论：预填 @昵称（抖音同款），光标在末尾
-        _commentCtrl.text = '@${target.author.displayName} ';
-      } else if (_commentCtrl.text.isEmpty) {
-        _commentCtrl.text = '';
-      }
-      _commentCtrl.selection = TextSelection.collapsed(offset: _commentCtrl.text.length);
-      _hintText = hintPrefix;
+      _hintText = '回复@${target.author.displayName}';
     });
     FocusScope.of(context).requestFocus(_commentFocus);
   }

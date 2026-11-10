@@ -447,8 +447,12 @@ class CommentSectionState extends State<CommentSection> {
     );
   }
 
-  /// 昵称行：昵称 +【作者】轻标识 + 日期
-  Widget _nameRow(CloudComment c, {double fontSize = 12}) {
+  /// 昵称行：昵称 +【作者】轻标识 + [回复关系标签] + 日期。
+  /// [replyToNickname] 非 null（场景B：回复的是另一条子评论）→ 昵称右侧
+  /// 追加抖音同款纤细回复指向箭头 + 被回复昵称（点击 → 回复该用户）；
+  /// 箭头是关系标识非播放按钮，用户正文不再拼接 @前缀。
+  Widget _nameRow(CloudComment c,
+      {double fontSize = 12, String? replyToNickname}) {
     return Row(children: [
       Flexible(
         child: GestureDetector(
@@ -471,6 +475,26 @@ class CommentSectionState extends State<CommentSection> {
           ),
           child: Text('作者',
               style: const TextStyle(color: AppColors.gold, fontSize: 9)),
+        ),
+      ],
+      if (replyToNickname != null) ...[
+        const SizedBox(width: 4),
+        // 纤细回复指向箭头（Icons.reply 水平翻转 → 指向右侧被回复人）
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => widget.onReplyTap(c),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Transform.flip(
+              flipX: true,
+              child: Icon(Icons.reply,
+                  size: fontSize + 1, color: AppColors.sub),
+            ),
+            const SizedBox(width: 2),
+            Text(replyToNickname,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.sub, fontSize: fontSize - 0.5)),
+          ]),
         ),
       ],
       const Spacer(),
@@ -605,27 +629,11 @@ class CommentSectionState extends State<CommentSection> {
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _nameRow(r, fontSize: 11),
+              // 回复关系标签在头部：回复昵称 [纤细箭头 被回复昵称]（场景B）；
+              // 用户正文独立在下方，干净不带 @前缀（对齐抖音排版）
+              _nameRow(r, fontSize: 11, replyToNickname: r.replyToNickname),
               const SizedBox(height: 2),
-              // 场景A：回复一级评论 → 只缩进无三角；场景B：▶ @昵称：内容
-              Text.rich(TextSpan(children: [
-                if (r.replyToNickname != null) ...[
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => widget.onReplyTap(r), // ▶ 后 @昵称可点击 → 回复该用户
-                      child: Text('▶ @${r.replyToNickname} ：',
-                          style: const TextStyle(
-                              color: AppColors.sub,
-                              fontSize: 12.5,
-                              height: 1.4)),
-                    ),
-                  ),
-                ],
-                ..._buildContentSpans(r.content),
-              ])),
+              Text.rich(TextSpan(children: _buildContentSpans(r.content))),
               const SizedBox(height: 4),
               _actionRow(r),
             ],
