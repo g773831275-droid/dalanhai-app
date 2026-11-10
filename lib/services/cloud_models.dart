@@ -59,6 +59,7 @@ class CloudPost {
     required this.createdAt,
     this.coverKey,
     this.island,
+    this.isTop = false,
   });
 
   factory CloudPost.fromJson(Map<String, dynamic> j) => CloudPost(
@@ -74,6 +75,7 @@ class CloudPost {
         liked: (j['liked'] as bool?) ?? false,
         commentCount: (j['commentCount'] as num?)?.toInt() ?? 0,
         createdAt: (j['createdAt'] as String?) ?? '',
+        isTop: (j['isTop'] as bool?) ?? false,
       );
 
   final int postId;
@@ -90,6 +92,9 @@ class CloudPost {
   final bool liked;
   final int commentCount;
   final String createdAt;
+
+  /// v2.9.8：主页日志置顶（仅影响 /api/user/:uid/posts 列表排序，港口流不受影响）
+  final bool isTop;
 }
 
 /// 分页通用结构

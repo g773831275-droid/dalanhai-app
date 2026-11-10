@@ -417,6 +417,22 @@ class CloudApi {
     await _request('DELETE', '/api/posts/$postId');
   }
 
+  /// v2.9.8 置顶/取消置顶（PATCH /api/posts/:postId/top，仅作者；
+  /// 置顶 true 时后端同事务自动清该用户其他帖的置顶，单用户最多 1 条）
+  Future<void> setPostTop(int postId, {required bool isTop}) async {
+    await _request('PATCH', '/api/posts/$postId/top', body: <String, dynamic>{
+      'isTop': isTop,
+    });
+  }
+
+  /// v2.9.8 批量删除（POST /api/posts/batch-delete，仅本人帖子；
+  /// 任一 id 不存在或非本人 → 403 不部分删除）。返回实际删除条数
+  Future<int> batchDeletePosts(List<int> postIds) async {
+    final data = await _request('POST', '/api/posts/batch-delete',
+        body: <String, dynamic>{'postIds': postIds}) as Map<String, dynamic>;
+    return (data['deleted'] as num?)?.toInt() ?? 0;
+  }
+
   /// 子评论分页（GET /api/comments/:commentId/replies，时间正序）
   Future<PagedComments> fetchReplies(int commentId, {int page = 1, int size = 10}) async {
     final data = await _request('GET', '/api/comments/$commentId/replies',

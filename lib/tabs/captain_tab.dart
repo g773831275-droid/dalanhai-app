@@ -66,6 +66,11 @@ class _CaptainTabState extends State<CaptainTab> {
   DataStore? _boundStore;
   Timer? _profileDebounce;
 
+  // ── v2.9.8 长按菜单 / 置顶 / 批量删除（仅「我的日志」Tab）──
+  bool _batchMode = false; // 批量选择模式
+  bool _topBusy = false; // 置顶/批量删除请求防抖
+  final Set<int> _selectedIds = <int>{}; // 批量模式已勾选 postId
+
   @override
   void initState() {
     super.initState();
@@ -213,11 +218,199 @@ class _CaptainTabState extends State<CaptainTab> {
   /// 切换双 Tab：清空目标列表重拉（切换流畅、数据准确无重复）
   void _switchTab(bool liked) {
     if (_likedTab == liked) return;
-    setState(() => _likedTab = liked);
+    setState(() {
+      _likedTab = liked;
+      // 切 Tab 退出批量模式（批量仅限我的日志）
+      _batchMode = false;
+      _selectedIds.clear();
+    });
     _loadPosts();
     if (_scrollCtrl.hasClients) {
       _scrollCtrl.animateTo(0,
           duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+    }
+  }
+
+  // ── v2.9.8 长按菜单 / 置顶 / 批量删除 ─────────────────────
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          backgroundColor: AppColors.cardSolid,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(milliseconds: 1200)),
+    );
+  }
+
+  /// 长按「我的日志」单条日志 → 底部弹出操作菜单（Sheet 垂直排列 + 固定取消）
+  Future<void> _showPostMenu(CloudPost post) async {
+    if (_batchMode || _likedTab || _topBusy) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.deep,
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            _sheetItem(
+                post.isTop ? '取消置顶' : '置顶该日志',
+                () => Navigator.pop(context, 'top')),
+            _sheetItem('批量删除', () => Navigator.pop(context, 'batch')),
+            _sheetItem('取消', () => Navigator.pop(context)),
+          ]),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'top') {
+      await _toggleTop(post);
+    } else if (action == 'batch') {
+      setState(() {
+        _batchMode = true;
+        _selectedIds.clear();
+      });
+    }
+  }
+
+  Widget _sheetItem(String label, VoidCallback onTap, {Color? color}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        alignment: Alignment.center,
+        child: Text(label,
+            style: TextStyle(
+                color: color ?? const Color(0xFFEAF2FF),
+                fontSize: 15,
+                fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  /// 置顶 / 取消置顶。置顶第二条时弹替换确认（确认后后端自动清旧置顶）。
+  Future<void> _toggleTop(CloudPost post) async {
+    if (_topBusy) return;
+    if (!post.isTop) {
+      final hasOtherPinned =
+          _myPosts.any((p) => p.isTop && p.postId != post.postId);
+      if (hasOtherPinned) {
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.deep,
+            title: Text('替换置顶',
+                style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+            content: Text('最多只能置顶1条日志，是否替换置顶？',
+                style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('取消')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('确认',
+                      style: TextStyle(color: AppColors.gold))),
+            ],
+          ),
+        );
+        if (ok != true || !mounted) return;
+      }
+    }
+    _topBusy = true;
+    try {
+      await CloudApi.instance.setPostTop(post.postId, isTop: !post.isTop);
+      if (!mounted) return;
+      _toast(post.isTop ? '已取消置顶' : '已置顶该日志');
+      await _loadPosts();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAlertToast(context, e.code == 403 ? '只有日志作者可以置顶' : e.message);
+    } finally {
+      _topBusy = false;
+    }
+  }
+
+  void _toggleSelect(int postId) {
+    setState(() {
+      if (!_selectedIds.add(postId)) _selectedIds.remove(postId);
+    });
+  }
+
+  bool get _allLoadedSelected =>
+      _myPosts.isNotEmpty &&
+      _myPosts.every((p) => _selectedIds.contains(p.postId));
+
+  /// 全选 / 取消全选（针对已加载的我的日志）
+  void _toggleSelectAll() {
+    setState(() {
+      if (_allLoadedSelected) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds
+          ..clear()
+          ..addAll(_myPosts.map((p) => p.postId));
+      }
+    });
+  }
+
+  Future<void> _exitBatchMode() async {
+    setState(() {
+      _batchMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  /// 批量删除：二次确认 → 批量接口 → 刷新列表（删置顶帖后端自动清置顶标记）
+  Future<void> _deleteSelected() async {
+    if (_topBusy || _selectedIds.isEmpty) {
+      _toast('请先勾选要删除的日志');
+      return;
+    }
+    final n = _selectedIds.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.deep,
+        title: Text('批量删除',
+            style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+        content: Text('确定删除选中$n条日志？删除后不可恢复',
+            style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('删除',
+                  style: TextStyle(color: AppColors.coral))),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    _topBusy = true;
+    try {
+      final ids = _selectedIds.toList();
+      final deleted = await CloudApi.instance.batchDeletePosts(ids);
+      if (!mounted) return;
+      _toast('已删除 $deleted 条日志');
+      kCloudFeedRefreshSignal.value++; // 港口流计数同步
+      await _exitBatchMode();
+      await _loadPosts();
+      await _loadProfile(); // 日志数统计同步
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      showAlertToast(context, e.code == 403 ? '只能删除自己的日志' : e.message);
+    } finally {
+      _topBusy = false;
     }
   }
 
@@ -578,16 +771,29 @@ class _CaptainTabState extends State<CaptainTab> {
     final total = _likedTab ? _likedTotal : _myTotal;
     return Column(
       children: [
-        // 点赞的日志：作者头像点击进对方主页；我的日志：进自身公开预览
-        ..._currentPosts.map((post) => CloudPostCard(
-              post: post,
-              onAvatarTap: (author) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => UserProfilePage(uid: author.uid)),
-                );
-              },
-            )),
+        // v2.9.8 批量模式操作栏（仅我的日志；【全选】【删除选中】【退出批量】）
+        if (_batchMode && !_likedTab) _buildBatchBar(),
+        // 点赞的日志：作者头像点击进对方主页；我的日志：进自身公开预览。
+        // 长按菜单/批量勾选仅限我的日志；点赞的日志 Tab 无菜单
+        ..._currentPosts.map((post) {
+          final mine = !_likedTab;
+          return CloudPostCard(
+            post: post,
+            onAvatarTap: (author) {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (_) => UserProfilePage(uid: author.uid)),
+              );
+            },
+            onLongPress: mine && !_batchMode
+                ? () => _showPostMenu(post)
+                : null,
+            selectMode: mine && _batchMode,
+            checked: _selectedIds.contains(post.postId),
+            onToggleSelect:
+                mine && _batchMode ? () => _toggleSelect(post.postId) : null,
+          );
+        }),
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Center(
@@ -602,6 +808,66 @@ class _CaptainTabState extends State<CaptainTab> {
           ),
         ),
       ],
+    );
+  }
+
+  /// 批量模式顶部操作栏：【全选/取消全选】【删除选中(N)】【退出批量】
+  Widget _buildBatchBar() {
+    final n = _selectedIds.length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
+        color: AppColors.deep.withValues(alpha: 0.6),
+      ),
+      child: Row(
+        children: [
+          _batchBarItem(
+            _allLoadedSelected ? '取消全选' : '全选',
+            _toggleSelectAll,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _batchBarItem(
+              n > 0 ? '删除选中($n)' : '删除选中',
+              _deleteSelected,
+              highlight: n > 0,
+            ),
+          ),
+          const SizedBox(width: 8),
+          _batchBarItem('退出批量', _exitBatchMode),
+        ],
+      ),
+    );
+  }
+
+  Widget _batchBarItem(String label, VoidCallback onTap,
+      {bool highlight = false}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: highlight ? AppColors.coral.withValues(alpha: 0.18) : null,
+          border: Border.all(
+            color: highlight
+                ? AppColors.coral.withValues(alpha: 0.6)
+                : AppColors.gold.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: highlight ? AppColors.coral : AppColors.gold,
+          ),
+        ),
+      ),
     );
   }
 }
