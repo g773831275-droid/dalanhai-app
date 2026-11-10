@@ -70,6 +70,9 @@ class CloudPostCard extends StatelessWidget {
     final onLongPressCard = selectMode ? null : onLongPress;
 
     return GestureDetector(
+      // opaque：整卡区域（含空白装饰区）参与命中 —— 需求：纯文本/带图帖的
+      // 卡片空白区长按也能唤起菜单（默认 deferToChild 时空白区不命中）
+      behavior: HitTestBehavior.opaque,
       onTap: onTapCard,
       onLongPress: onLongPressCard,
       child: Container(
@@ -222,11 +225,11 @@ class CloudPostCard extends StatelessWidget {
                 ),
               ],
             ),
-            // 置顶标识：左上角金色【置顶】（批量模式下让位于勾选框，右移避让）
+            // 置顶标识：右上角金色【置顶】（避开标题文字区域，不遮挡内容）
             if (post.isTop && showPinBadge && !selectMode)
               Positioned(
                 top: 10,
-                left: 10,
+                right: 10,
                 child: _pinBadge(),
               ),
             // 批量模式：左上角圆形勾选框
@@ -236,11 +239,11 @@ class CloudPostCard extends StatelessWidget {
                 left: 10,
                 child: _checkBox(),
               ),
-            // 批量模式下置顶帖保留标识（勾选框右侧）
+            // 批量模式下置顶帖保留标识（勾选框左上，置顶标右上）
             if (post.isTop && showPinBadge && selectMode)
               Positioned(
                 top: 10,
-                left: 54,
+                right: 10,
                 child: _pinBadge(),
               ),
             // 热门流：右上角 🔥 标识

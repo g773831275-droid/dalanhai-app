@@ -27,8 +27,13 @@ class SessionStore {
 
   static final SessionStore instance = SessionStore._();
 
-  /// 线上服务器唯一域名（全局单点配置；所有接口统一走这里）
-  static const String defaultBaseUrl = 'https://api.idalanhai.com';
+  /// 线上服务器唯一域名（全局单点配置；所有接口统一走这里）。
+  /// v2.9.8：支持构建期覆盖（--dart-define=DALANHAI_BASE_URL=...），
+  /// 仅供本地联调/E2E 测试包使用；生产构建不传参 → 恒为线上域名。
+  static const String defaultBaseUrl = String.fromEnvironment(
+    'DALANHAI_BASE_URL',
+    defaultValue: 'https://api.idalanhai.com',
+  );
 
   static const String _kBase = 'dalanhai_api_base'; // 历史遗留键：restore 时清除
   static const String _kToken = 'dalanhai_api_token';
