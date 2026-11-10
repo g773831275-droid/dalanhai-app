@@ -489,12 +489,17 @@ class CommentSectionState extends State<CommentSection> {
         ),
       ],
       const Spacer(),
-      Text(_fmtDate(c.createdAt),
-          style: AppTypography.caption.copyWith(fontSize: 10)),
+      Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: Text(_fmtDate(c.createdAt),
+            style: AppTypography.caption.copyWith(fontSize: 10)),
+      ),
     ]);
   }
 
-  /// 💬回复 / ❤️点赞 操作行（emoji 图标 + 数字，间距加大防误触）
+  /// 💬回复 / ❤️点赞 操作行（抖音式布局）：
+  /// 💬回复居左（缩进对齐内容），❤️点赞+数字居右，与头部时间共用右基准线
+  /// （右侧留 4px 安全边距，不贴屏幕边缘）
   Widget _actionRow(CloudComment c) {
     return Row(children: [
       const SizedBox(width: 24),
@@ -511,12 +516,12 @@ class CommentSectionState extends State<CommentSection> {
           ]),
         ),
       ),
-      const SizedBox(width: 24),
+      const Spacer(),
       GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => _toggleCommentLike(c),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.only(left: 8, right: 4, top: 2, bottom: 2),
           child: Row(children: [
             Text(c.liked ? '❤️' : '🤍', style: const TextStyle(fontSize: 13)),
             const SizedBox(width: 3),

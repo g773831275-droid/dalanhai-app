@@ -553,8 +553,9 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                       ),
                     ],
                     const SizedBox(height: 16),
-                    // 操作行（v2.9.6：仅保留点赞 —— 举报/拉黑已收纳进右上角「···」菜单）
-                    Row(children: [
+                    // 操作行（v2.9.6：仅保留点赞 —— 举报/拉黑已收纳进右上角「···」菜单；
+                    // 抖音式布局：主帖点赞靠右，与下方评论点赞共用右基准线）
+                    Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                       GestureDetector(
                         onTap: _toggleLike,
                         child: Row(children: [
