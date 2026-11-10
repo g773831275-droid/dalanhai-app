@@ -421,6 +421,8 @@ Flutter 新模板只在 debug/profile manifest 给 INTERNET 权限——release 
 
 执行 `flutter config --no-enable-windows-desktop`。目的：防止 `flutter run`/`flutter devices` 误选中 Windows desktop 目标，避免 C 盘生成大量 CMake 编译中间文件占用空间。注意：仅本机全局配置，**不影响 Codemagic CI、Android / iOS 打包**。后续如需开发 Windows 桌面端，恢复命令：`flutter config --enable-windows-desktop`。
 
+补充说明——开启 Windows 桌面编译仅在以下场景需要：① 开发、调试 Windows 桌面端版本（本地直接运行 exe）；② CI 打包产出 Windows 安装包。本项目现阶段只维护 Android / iOS 移动端，无桌面端计划，**保持关闭即可**，不影响移动端开发、模拟器调试、Codemagic 打包。
+
 ---
 
 ## 8. 常用命令
