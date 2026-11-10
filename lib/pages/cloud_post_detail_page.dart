@@ -60,7 +60,9 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
   bool _sending = false;
   bool _deletingPost = false;
   final Map<String, int> _atUidMap = {}; // 已知 @昵称 → uid（预埋用）
-  String? _atQuery; // 当前 @ 触发片段（非 null = 弹窗已开）
+  bool _atPickerOpen = false; // @搜索弹窗是否打开
+  VoidCallback? _closeAtPicker; // 打开中的弹窗关闭句柄（删字时自动收起）
+  int _lastTextLength = 0; // 上次文本长度（识别删除动作）
   String _hintText = '说点什么…';
   final FocusNode _commentFocus = FocusNode();
 
@@ -258,40 +260,56 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
     FocusScope.of(context).requestFocus(_commentFocus);
   }
 
-  /// @ 触发检测：光标前存在未闭合 @片段 → 弹用户搜索（一次，选择后复位）
+  /// @ 触发检测（v2.9.7.1 对标 X 交互，修复删字反复弹窗 bug）：
+  /// - 仅当【光标前紧邻单独 @（@ 后无任何字符）】才拉起搜索 —— 删 @后面文字
+  ///   的过程中 before 是「@xxx」不满足条件，不会反复触发；
+  /// - 删字（文本变短）时，打开中的搜索弹窗自动收起。
   void _onCommentChanged(String text) {
+    // 需求④：删除文字过程中，打开中的 @搜索弹窗自动收起
+    if (text.length < _lastTextLength && _atPickerOpen) {
+      _closeAtPicker?.call();
+    }
+    _lastTextLength = text.length;
+
+    // 需求②③：光标前紧邻单独 @ 才唤起（兼容中文 IME 的全角＠）
     final sel = _commentCtrl.selection;
-    if (_atQuery == null && sel.isValid && sel.baseOffset >= 0 && sel.baseOffset <= text.length) {
-      final before = text.substring(0, sel.baseOffset);
-      final m = RegExp(r'@([^@\s]{0,12})$').firstMatch(before);
-      if (m != null) {
-        _atQuery = m.group(1)!;
-        _openAtPicker(m.start);
-      }
+    final bool beforeAt = sel.isValid &&
+        sel.baseOffset > 0 &&
+        sel.baseOffset <= text.length &&
+        (text.substring(0, sel.baseOffset).endsWith('@') ||
+            text.substring(0, sel.baseOffset).endsWith('＠'));
+    final bool hitAt = !_atPickerOpen && beforeAt;
+    if (hitAt) {
+      _openAtPicker(sel.baseOffset - 1);
     }
     setState(() {}); // 刷新发送按钮可用态
   }
 
   /// @用户选择弹窗（头像 + 昵称，模糊搜索；选中插入 @昵称 并记录 uid）
   Future<void> _openAtPicker(int atStart) async {
+    _atPickerOpen = true;
     final picked = await showModalBottomSheet<(String, int)>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _AtUserPicker(),
+      // 键盘避让：浮在输入法上方，否则被键盘完全遮挡
+      builder: (sheetCtx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+        child: _AtUserPicker(onClose: () => Navigator.pop(sheetCtx)),
+      ),
     );
-    if (!mounted) return;
-    final q = _atQuery;
-    _atQuery = null;
-    if (picked == null || q == null) return;
+    _atPickerOpen = false;
+    _closeAtPicker = null;
+    if (!mounted || picked == null) return;
     final (nickname, uid) = picked;
     _atUidMap[nickname] = uid;
     final text = _commentCtrl.text;
-    // 替换光标前的 @触发片段 为 @昵称␣
+    // 替换光标前的 @片段 为 @昵称␣
     final end = _commentCtrl.selection.baseOffset;
     final safeEnd = end >= atStart && end <= text.length ? end : text.length;
     _commentCtrl.text = '${text.substring(0, atStart)}@$nickname ${text.substring(safeEnd)}';
     _commentCtrl.selection = TextSelection.collapsed(offset: atStart + nickname.length + 2);
+    _lastTextLength = _commentCtrl.text.length;
     setState(() {});
   }
 
@@ -689,8 +707,13 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
 }
 
 /// @用户选择弹窗（v2.9.7）：搜索框 + 头像/昵称结果列表；
-/// 选中返回 (nickname, uid)，头像走 OSS key 签名加载，失败回退首字占位
+/// 选中返回 (nickname, uid)，头像走 OSS key 签名加载，失败回退首字占位。
+/// [onClose] 供外部（删字自动收起）程序化关闭。
 class _AtUserPicker extends StatefulWidget {
+  const _AtUserPicker({this.onClose});
+
+  final VoidCallback? onClose;
+
   @override
   State<_AtUserPicker> createState() => _AtUserPickerState();
 }
@@ -752,9 +775,9 @@ class _AtUserPickerState extends State<_AtUserPicker> {
       child: SafeArea(
         top: false,
         child: Column(children: [
-          // 顶部：标题 + 搜索框
+          // 顶部：搜索框 + 关闭
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 10),
             child: Row(children: [
               Expanded(
                 child: TextField(
@@ -774,6 +797,10 @@ class _AtUserPickerState extends State<_AtUserPicker> {
                     ),
                   ),
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18, color: AppColors.sub),
+                onPressed: widget.onClose,
               ),
             ]),
           ),
