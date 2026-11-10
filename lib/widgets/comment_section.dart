@@ -440,58 +440,65 @@ class CommentSectionState extends State<CommentSection> {
   }
 
   /// 昵称行：昵称 +【作者】轻标识 + [回复关系标签] + 日期。
+  /// 抖音式布局：昵称/回复标签区整体 Expanded 占满除时间外的宽度（短昵称时
+  /// 内容仍靠左），时间固定贴右边缘（right:4 安全边距）——所有评论共用同一条
+  /// 右基准线，短/长昵称均不漂移。
   /// [replyToNickname]/[replyToUid] 非 null（场景B）→ 昵称右侧追加纤细回复
   /// 指向箭头 + 被回复昵称；头部两个昵称点击均【跳转用户主页】（不填充@）。
   Widget _nameRow(CloudComment c,
       {double fontSize = 12, String? replyToNickname, int? replyToUid}) {
     return Row(children: [
-      Flexible(
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => _openProfile(c.author.uid),
-          onLongPress: null,
-          child: Text(c.author.displayName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.foam, fontSize: fontSize)),
-        ),
+      Expanded(
+        child: Row(children: [
+          Flexible(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _openProfile(c.author.uid),
+              onLongPress: null,
+              child: Text(c.author.displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: AppColors.foam, fontSize: fontSize)),
+            ),
+          ),
+          if (c.isPostAuthor) ...[
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text('作者',
+                  style: const TextStyle(color: AppColors.gold, fontSize: 9)),
+            ),
+          ],
+          if (replyToNickname != null) ...[
+            const SizedBox(width: 4),
+            // 纤细回复指向箭头（Icons.reply 水平翻转 → 指向右侧被回复人）
+            Transform.flip(
+              flipX: true,
+              child: Icon(Icons.reply, size: fontSize + 1, color: AppColors.sub),
+            ),
+            const SizedBox(width: 2),
+            Flexible(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap:
+                    replyToUid == null ? null : () => _openProfile(replyToUid),
+                child: Text(replyToNickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: AppColors.sub, fontSize: fontSize - 0.5)),
+              ),
+            ),
+          ],
+        ]),
       ),
-      if (c.isPostAuthor) ...[
-        const SizedBox(width: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text('作者',
-              style: const TextStyle(color: AppColors.gold, fontSize: 9)),
-        ),
-      ],
-      if (replyToNickname != null) ...[
-        const SizedBox(width: 4),
-        // 纤细回复指向箭头（Icons.reply 水平翻转 → 指向右侧被回复人）
-        Transform.flip(
-          flipX: true,
-          child: Icon(Icons.reply, size: fontSize + 1, color: AppColors.sub),
-        ),
-        const SizedBox(width: 2),
-        Flexible(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap:
-                replyToUid == null ? null : () => _openProfile(replyToUid),
-            child: Text(replyToNickname,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: AppColors.sub, fontSize: fontSize - 0.5)),
-          ),
-        ),
-      ],
-      const Spacer(),
       Padding(
         padding: const EdgeInsets.only(right: 4),
         child: Text(_fmtDate(c.createdAt),
+            maxLines: 1,
             style: AppTypography.caption.copyWith(fontSize: 10)),
       ),
     ]);
