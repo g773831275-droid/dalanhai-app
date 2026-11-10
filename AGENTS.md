@@ -417,6 +417,10 @@ widget 测试里 `http.get` 真实请求永远不会完成（fakeAsync 冻结事
 
 Flutter 新模板只在 debug/profile manifest 给 INTERNET 权限——release 正式包会**完全无法联网**。v2.9.6 已在 main manifest 补 `<uses-permission android:name="android.permission.INTERNET"/>`，勿删。
 
+### 🚨 本机 Flutter 全局关闭 Windows 桌面编译支持
+
+执行 `flutter config --no-enable-windows-desktop`。目的：防止 `flutter run`/`flutter devices` 误选中 Windows desktop 目标，避免 C 盘生成大量 CMake 编译中间文件占用空间。注意：仅本机全局配置，**不影响 Codemagic CI、Android / iOS 打包**。后续如需开发 Windows 桌面端，恢复命令：`flutter config --enable-windows-desktop`。
+
 ---
 
 ## 8. 常用命令
