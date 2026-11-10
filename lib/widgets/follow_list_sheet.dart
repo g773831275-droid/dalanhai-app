@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/cloud_api.dart';
 import '../services/cloud_models.dart';
@@ -90,12 +91,24 @@ class _UserListSheetState extends State<_UserListSheet> {
     }
   }
 
+  /// DEBUG：打印解析后的关注关系布尔值（release 包自动剔除）
+  void _debugLogParsed(PagedUsers r) {
+    if (kReleaseMode) return;
+    for (final e in r.list) {
+      debugPrint('[FollowList][parsed] ${widget.isFollowers ? 'followers' : 'following'}'
+          ' uid=${e.uid} name=${e.displayName}'
+          ' isMyFollow=${e.isMyFollow} isFollowMe=${e.isFollowMe}'
+          ' label=${followStatusLabel(e, isFollowers: widget.isFollowers)}');
+    }
+  }
+
   Future<void> _loadFirst() async {
     try {
       final PagedUsers r = widget.isFollowers
           ? await CloudApi.instance.fetchFollowers(widget.uid)
           : await CloudApi.instance.fetchFollowing(widget.uid);
       if (!mounted) return;
+      _debugLogParsed(r);
       setState(() {
         _total = r.total;
         _list.addAll(r.list);
@@ -120,6 +133,7 @@ class _UserListSheetState extends State<_UserListSheet> {
           ? await CloudApi.instance.fetchFollowers(widget.uid, page: page)
           : await CloudApi.instance.fetchFollowing(widget.uid, page: page);
       if (!mounted) return;
+      _debugLogParsed(r);
       final known = _list.map((e) => e.uid).toSet();
       setState(() {
         _list.addAll(r.list.where((e) => !known.contains(e.uid)));

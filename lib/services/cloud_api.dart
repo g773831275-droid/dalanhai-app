@@ -523,6 +523,7 @@ class CloudApi {
   Future<PagedUsers> fetchFollowers(int uid, {int page = 1, int size = 20}) async {
     final data = await _request('GET', '/api/user/$uid/followers',
         query: <String, String>{'page': '$page', 'size': '$size'}) as Map<String, dynamic>;
+    _debugLogUserList('followers', data);
     return PagedUsers.fromJson(data);
   }
 
@@ -530,7 +531,14 @@ class CloudApi {
   Future<PagedUsers> fetchFollowing(int uid, {int page = 1, int size = 20}) async {
     final data = await _request('GET', '/api/user/$uid/following',
         query: <String, String>{'page': '$page', 'size': '$size'}) as Map<String, dynamic>;
+    _debugLogUserList('following', data);
     return PagedUsers.fromJson(data);
+  }
+
+  /// DEBUG：打印关注/粉丝列表原始 JSON（release 包自动剔除）
+  static void _debugLogUserList(String tag, Map<String, dynamic> data) {
+    if (kReleaseMode) return;
+    debugPrint('[FollowList][$tag] raw = $data');
   }
 
   /// 他人主页/自身公开预览（GET /api/user/:uid/profile）。
