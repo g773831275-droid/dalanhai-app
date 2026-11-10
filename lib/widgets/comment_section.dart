@@ -423,10 +423,14 @@ class CommentSectionState extends State<CommentSection> {
   InlineSpan _plainSpan(String s) => TextSpan(
       text: s, style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 13, height: 1.4));
 
-  /// 统一日期展示（需求：不做相对时间，只取日期部分）
+  /// 统一日期展示（需求：与帖子格式一致 yyyy-MM-dd HH:mm:ss；
+  /// 后端 SQLite datetime('now','localtime') 已是完整格式，直接透传；
+  /// 防御性归一：兼容 ISO 'T' 分隔与毫秒尾缀）
   static String _fmtDate(String raw) {
-    final s = raw.trim();
-    return s.length >= 10 ? s.substring(0, 10) : s;
+    final s = raw.trim().replaceAll('T', ' ');
+    final end = s.indexOf('.');
+    final base = end > 0 ? s.substring(0, end) : s;
+    return base.length >= 19 ? base.substring(0, 19) : base;
   }
 
   void _openProfile(int uid) {
