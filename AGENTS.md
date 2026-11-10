@@ -417,11 +417,14 @@ widget 测试里 `http.get` 真实请求永远不会完成（fakeAsync 冻结事
 
 Flutter 新模板只在 debug/profile manifest 给 INTERNET 权限——release 正式包会**完全无法联网**。v2.9.6 已在 main manifest 补 `<uses-permission android:name="android.permission.INTERNET"/>`，勿删。
 
-### 🚨 本机 Flutter 全局关闭 Windows 桌面编译支持
+### 🚨 本机 Flutter 配置：已开启 Windows 桌面编译支持
 
-执行 `flutter config --no-enable-windows-desktop`。目的：防止 `flutter run`/`flutter devices` 误选中 Windows desktop 目标，避免 C 盘生成大量 CMake 编译中间文件占用空间。注意：仅本机全局配置，**不影响 Codemagic CI、Android / iOS 打包**。后续如需开发 Windows 桌面端，恢复命令：`flutter config --enable-windows-desktop`。
+已执行 `flutter config --enable-windows-desktop`。目的：保留桌面端编译能力，后续如需开发 Windows 版本可直接调试打包。
+风险提醒：如果误选中 Windows desktop 目标运行，会生成大量 CMake 编译中间文件占用 C 盘。
+约束规则：**所有自动化自测命令固定指定 `-d emulator-5554`**，强制走 Pixel7 模拟器，不自动选择 Windows 桌面。
+后续如需关闭桌面端，执行命令：`flutter config --no-enable-windows-desktop`。
 
-补充说明——开启 Windows 桌面编译仅在以下场景需要：① 开发、调试 Windows 桌面端版本（本地直接运行 exe）；② CI 打包产出 Windows 安装包。本项目现阶段只维护 Android / iOS 移动端，无桌面端计划，**保持关闭即可**，不影响移动端开发、模拟器调试、Codemagic 打包。
+补充说明——开启 Windows 桌面编译仅在以下场景需要：① 开发、调试 Windows 桌面端版本，本地直接运行 exe；② CI 打包产出 Windows 安装包。本项目现阶段只维护 Android / iOS 移动端，无桌面端计划，日常开发固定使用 Pixel7 模拟器。
 
 ---
 
