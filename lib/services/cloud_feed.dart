@@ -25,6 +25,10 @@ import 'media_sign_cache.dart';
 /// PortTab 监听后重拉第一页 —— 解耦：composer 无需持有 loader 引用）
 final ValueNotifier<int> kCloudFeedRefreshSignal = ValueNotifier<int>(0);
 
+/// 删帖成功全局信号（v2.9.7 详情页删除日志 value++；
+/// 港口流本地精确移除走 loader.removePostById，船长页等订阅本信号重拉列表）
+final ValueNotifier<int> kPostDeletedSignal = ValueNotifier<int>(0);
+
 /// 发帖成功后的定位信号（v2.9.3 → 改 Stream 广播流）：
 /// ValueNotifier 依赖值变更触发，同值/快速连续发送存在漏触发问题；
 /// broadcast Stream 每一次 add 都是独立事件，连续发多条帖每条都能收到。
@@ -166,8 +170,19 @@ class CloudFeedLoader extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 删除日志后本地精确移除该帖（v2.9.7）
+  void removePostById(int postId) {
+    posts = posts.where((p) => p.postId != postId).toList();
+    notifyListeners();
+  }
+
   /// 发评论成功后本地 +1（免多拉一次详情）
   void bumpCommentCount(int postId) {
+    applyCommentCount(postId, null, delta: 1);
+  }
+
+  /// 评论数精确同步（v2.9.7：发评论后端返回总数 / 删评论返回剩余；delta 兜底 +1）
+  void applyCommentCount(int postId, int? count, {int delta = 1}) {
     posts = posts
         .map((p) => p.postId == postId
             ? CloudPost(
@@ -181,7 +196,7 @@ class CloudFeedLoader extends ChangeNotifier {
                 tags: p.tags,
                 likeCount: p.likeCount,
                 liked: p.liked,
-                commentCount: p.commentCount + 1,
+                commentCount: count ?? p.commentCount + delta,
                 createdAt: p.createdAt,
               )
             : p)

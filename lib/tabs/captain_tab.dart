@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/models.dart';
 import '../data/data_store_provider.dart';
 import '../services/cloud_api.dart';
+import '../services/cloud_feed.dart';
 import '../services/cloud_models.dart';
 import '../services/social_state.dart';
 import '../theme/colors.dart';
@@ -74,6 +75,15 @@ class _CaptainTabState extends State<CaptainTab> {
     // 关注/取关发生在他人主页或日志详情页 → FollowState 通知 → 计数重拉。
     // 本页在 IndexedStack 常驻，不订阅就会卡死在首次快照（计数与弹窗错位）。
     FollowState.instance.addListener(_onStoreChanged);
+    // 详情页删除日志 → 全局信号 → 重拉日志列表（本页常驻不重建）
+    kPostDeletedSignal.addListener(_onPostDeleted);
+  }
+
+  void _onPostDeleted() {
+    _myPosts.clear();
+    _myTotal = 0;
+    _myReachedEnd = false;
+    _loadPosts();
   }
 
   @override
@@ -93,6 +103,7 @@ class _CaptainTabState extends State<CaptainTab> {
     _profileDebounce?.cancel();
     _boundStore?.removeListener(_onStoreChanged);
     FollowState.instance.removeListener(_onStoreChanged);
+    kPostDeletedSignal.removeListener(_onPostDeleted);
     _scrollCtrl.dispose();
     super.dispose();
   }

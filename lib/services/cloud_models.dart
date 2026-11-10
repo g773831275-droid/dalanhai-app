@@ -111,13 +111,21 @@ class PagedPosts {
   bool get hasMore => list.isNotEmpty && list.length < total;
 }
 
-/// 评论（GET /api/post/:postId/comments 条目）
+/// 评论/子评论（v2.9.7 评论系统 v2，一级与子评论同构）
 class CloudComment {
   const CloudComment({
     required this.commentId,
     required this.author,
     required this.content,
     required this.createdAt,
+    this.likeCount = 0,
+    this.liked = false,
+    this.replyCount = 0,
+    this.rootCommentId,
+    this.replyToCommentId,
+    this.replyToNickname,
+    this.isPostAuthor = false,
+    this.atUserIds = const [],
   });
 
   factory CloudComment.fromJson(Map<String, dynamic> j) => CloudComment(
@@ -125,12 +133,81 @@ class CloudComment {
         author: CloudAuthor.fromJson((j['author'] as Map<String, dynamic>?) ?? const {}),
         content: (j['content'] as String?) ?? '',
         createdAt: (j['createdAt'] as String?) ?? '',
+        likeCount: (j['likeCount'] as num?)?.toInt() ?? 0,
+        liked: (j['liked'] as bool?) ?? false,
+        replyCount: (j['replyCount'] as num?)?.toInt() ?? 0,
+        rootCommentId: (j['rootCommentId'] as num?)?.toInt(),
+        replyToCommentId: (j['replyToCommentId'] as num?)?.toInt(),
+        replyToNickname: j['replyToNickname'] as String?,
+        isPostAuthor: (j['isPostAuthor'] as bool?) ?? false,
+        atUserIds: ((j['atUserIds'] as List<dynamic>?) ?? const [])
+            .map((e) => (e as num).toInt())
+            .toList(),
       );
 
   final int commentId;
   final CloudAuthor author;
   final String content;
   final String createdAt;
+
+  /// 点赞数 / 我是否已点赞（评论与子评论通用）
+  final int likeCount;
+  final bool liked;
+
+  /// 一级评论：直属子评论总数；子评论恒 0
+  final int replyCount;
+
+  /// 子评论：所属一级评论 id；一级评论为 null
+  final int? rootCommentId;
+
+  /// 子评论：被回复的评论 id（回复一级评论时 = 一级评论 id）
+  final int? replyToCommentId;
+
+  /// 场景B（回复的是另一条子评论）▶ 后 @昵称；场景A 为 null
+  final String? replyToNickname;
+
+  /// 评论人是否为帖子作者（渲染【作者】轻标识）
+  final bool isPostAuthor;
+
+  /// @用户 id 列表（通知模块预埋，本期不触发通知）
+  final List<int> atUserIds;
+
+  /// 是否子评论
+  bool get isReply => rootCommentId != null;
+
+  /// 复制并覆盖部分字段（本地乐观更新用）
+  CloudComment copyWith({int? likeCount, bool? liked, int? replyCount}) =>
+      CloudComment(
+        commentId: commentId,
+        author: author,
+        content: content,
+        createdAt: createdAt,
+        likeCount: likeCount ?? this.likeCount,
+        liked: liked ?? this.liked,
+        replyCount: replyCount ?? this.replyCount,
+        rootCommentId: rootCommentId,
+        replyToCommentId: replyToCommentId,
+        replyToNickname: replyToNickname,
+        isPostAuthor: isPostAuthor,
+        atUserIds: atUserIds,
+      );
+}
+
+/// @用户搜索结果（GET /api/users/search）
+class CloudUserSearchItem {
+  const CloudUserSearchItem({required this.userId, required this.nickname, this.avatar});
+
+  factory CloudUserSearchItem.fromJson(Map<String, dynamic> j) => CloudUserSearchItem(
+        userId: (j['userId'] as num).toInt(),
+        nickname: (j['nickname'] as String?) ?? '',
+        avatar: j['avatar'] as String?,
+      );
+
+  final int userId;
+  final String nickname;
+  final String? avatar;
+
+  String get displayName => nickname.isNotEmpty ? nickname : '船长$userId';
 }
 
 class PagedComments {

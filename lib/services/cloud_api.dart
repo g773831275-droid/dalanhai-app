@@ -390,9 +390,62 @@ class CloudApi {
 
   /// 发表评论（POST /api/posts/:postId/comment —— v2.6 既有接口，
   /// v2.7 补客户端方法；文本送审失败 403 / 未登录 401 由 [_request] 抛出）
-  Future<void> createComment(int postId, String content) async {
-    await _request('POST', '/api/posts/$postId/comment',
-        body: <String, dynamic>{'content': content});
+  /// v2.9.7：[replyToCommentId] 非空 = 子评论；[atUserIds] = @预埋（不触发通知）。
+  /// 返回新评论 + 帖子评论总数。
+  Future<({CloudComment comment, int commentCount})> createComment(
+    int postId,
+    String content, {
+    int? replyToCommentId,
+    List<int> atUserIds = const [],
+  }) async {
+    final data = await _request('POST', '/api/posts/$postId/comment',
+        body: <String, dynamic>{
+          'content': content,
+          'replyToCommentId': ?replyToCommentId,
+          if (atUserIds.isNotEmpty) 'atUserIds': atUserIds,
+        }) as Map<String, dynamic>;
+    return (
+      comment: CloudComment.fromJson(data['comment'] as Map<String, dynamic>),
+      commentCount: (data['commentCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  // ── v2.9.7 评论系统 v2 ────────────────────────────────────
+
+  /// 删除日志（DELETE /api/posts/:postId，仅作者；后端级联清评论/点赞/举报）
+  Future<void> deletePost(int postId) async {
+    await _request('DELETE', '/api/posts/$postId');
+  }
+
+  /// 子评论分页（GET /api/comments/:commentId/replies，时间正序）
+  Future<PagedComments> fetchReplies(int commentId, {int page = 1, int size = 10}) async {
+    final data = await _request('GET', '/api/comments/$commentId/replies',
+        query: <String, String>{'page': '$page', 'size': '$size'}) as Map<String, dynamic>;
+    return PagedComments.fromJson(data);
+  }
+
+  /// 评论点赞 toggle（POST /api/comments/:commentId/like）
+  Future<LikeResult> toggleCommentLike(int commentId) async {
+    final data = await _request('POST', '/api/comments/$commentId/like') as Map<String, dynamic>;
+    return LikeResult.fromJson(data);
+  }
+
+  /// 删除评论（DELETE /api/comments/:commentId）。
+  /// 权限：评论本人 / 帖子作者 / 父一级评论作者；删一级评论连带全部子评论。
+  /// 返回本帖剩余评论总数。
+  Future<int> deleteComment(int commentId) async {
+    final data = await _request('DELETE', '/api/comments/$commentId') as Map<String, dynamic>;
+    return (data['commentCount'] as num?)?.toInt() ?? 0;
+  }
+
+  /// @用户搜索（GET /api/users/search?q=，昵称模糊，排除自己/拉黑，≤10 条）
+  Future<List<CloudUserSearchItem>> searchUsers(String query) async {
+    if (query.trim().isEmpty) return const [];
+    final data = await _request('GET', '/api/users/search',
+        query: <String, String>{'q': query.trim()}) as Map<String, dynamic>;
+    return ((data['list'] as List<dynamic>?) ?? const [])
+        .map((e) => CloudUserSearchItem.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// 裸 key 签名（POST /api/media/sign 的 keys 参数，≤10 个/批）——
