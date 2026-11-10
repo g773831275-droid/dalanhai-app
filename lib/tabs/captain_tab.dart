@@ -71,6 +71,9 @@ class _CaptainTabState extends State<CaptainTab> {
     _loadProfile();
     _loadPosts();
     _scrollCtrl.addListener(_onScroll);
+    // 关注/取关发生在他人主页或日志详情页 → FollowState 通知 → 计数重拉。
+    // 本页在 IndexedStack 常驻，不订阅就会卡死在首次快照（计数与弹窗错位）。
+    FollowState.instance.addListener(_onStoreChanged);
   }
 
   @override
@@ -89,6 +92,7 @@ class _CaptainTabState extends State<CaptainTab> {
   void dispose() {
     _profileDebounce?.cancel();
     _boundStore?.removeListener(_onStoreChanged);
+    FollowState.instance.removeListener(_onStoreChanged);
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -446,15 +450,23 @@ class _CaptainTabState extends State<CaptainTab> {
   Widget _buildStats() {
     final p = _profile;
     final uid = p?.uid;
+    if (uid == null) {
+      return ProfileStatsGrid(
+        stats: p?.stats ??
+            const CloudProfileStats(), // 加载中/失败先 0 占位，回来自动刷新
+      );
+    }
+    // 弹窗关闭后回读统计：弹窗是实时接口，粉丝列表可能看到远端新增/移除，
+    // 关闭时对齐一次，保证计数与弹窗口径一致
+    Future<void> openSheet(bool isFollowers) async {
+      await showFollowListSheet(context, uid: uid, isFollowers: isFollowers);
+      _loadProfile();
+    }
+
     return ProfileStatsGrid(
-      stats: p?.stats ??
-          const CloudProfileStats(), // 加载中/失败先 0 占位，回来自动刷新
-      onFollowingTap: uid == null
-          ? null
-          : () => showFollowListSheet(context, uid: uid, isFollowers: false),
-      onFollowersTap: uid == null
-          ? null
-          : () => showFollowListSheet(context, uid: uid, isFollowers: true),
+      stats: p?.stats ?? const CloudProfileStats(),
+      onFollowingTap: () => openSheet(false),
+      onFollowersTap: () => openSheet(true),
     );
   }
 
