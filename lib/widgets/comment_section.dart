@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -67,6 +68,11 @@ class CommentSectionState extends State<CommentSection> {
   bool _reachedEnd = false;
   final Set<int> _likeBusy = <int>{}; // 评论点赞防抖
   bool _deleting = false;
+
+  // @用户点击：recognizer 按 @名 缓存复用（跨 rebuild 保持同一实例，
+  // 避免 rebuild 中途 dispose 打断进行中的手势）；State 销毁统一释放
+  final Map<String, TapGestureRecognizer> _mentionTaps = <String, TapGestureRecognizer>{};
+  String? _pressedMention; // 当前按压中的 @名（不含 @）→ 按压态半透明
 
   bool get _isLoggedIn => SessionStore.instance.hasToken;
 
@@ -403,16 +409,26 @@ class CommentSectionState extends State<CommentSection> {
     );
   }
 
-  /// 评论正文：用户手敲的 @昵称 蓝色高亮（纯样式，点击不填充输入框）
+  /// 评论正文：用户手敲的 @昵称 蓝色高亮【可点击 → 跳转该用户主页】；
+  /// 点击时经 @用户搜索接口按昵称精确解析 uid（后端评论 atUserIds 无昵称映射，
+  /// 位置对齐不可靠）；按压中半透明反馈。非 @ 文本保持原样不可点击。
   List<InlineSpan> _buildContentSpans(String content) {
     final spans = <InlineSpan>[];
     final regex = RegExp(r'@[^@\s，。！？；、]+');
     var last = 0;
     for (final m in regex.allMatches(content)) {
       if (m.start > last) spans.add(_plainSpan(content.substring(last, m.start)));
+      final text = m.group(0)!; // 含 @ 前缀
+      final name = text.substring(1);
+      final pressed = _pressedMention == name;
       spans.add(TextSpan(
-        text: m.group(0),
-        style: const TextStyle(color: AppColors.sky, fontSize: 13, height: 1.4),
+        text: text,
+        style: TextStyle(
+          color: pressed ? AppColors.sky.withValues(alpha: 0.6) : AppColors.sky,
+          fontSize: 13,
+          height: 1.4,
+        ),
+        recognizer: _mentionRecognizerOf(name),
       ));
       last = m.end;
     }
@@ -422,6 +438,61 @@ class CommentSectionState extends State<CommentSection> {
 
   InlineSpan _plainSpan(String s) => TextSpan(
       text: s, style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 13, height: 1.4));
+
+  TapGestureRecognizer _mentionRecognizerOf(String name) {
+    return _mentionTaps.putIfAbsent(name, () {
+      final r = TapGestureRecognizer();
+      r.onTapDown = (_) {
+        if (mounted) setState(() => _pressedMention = name);
+      };
+      r.onTapUp = (_) {
+        if (mounted && _pressedMention == name) setState(() => _pressedMention = null);
+      };
+      r.onTapCancel = () {
+        if (mounted && _pressedMention == name) setState(() => _pressedMention = null);
+      };
+      r.onTap = () {
+        if (mounted && _pressedMention == name) setState(() => _pressedMention = null);
+        _openMentionProfile(name);
+      };
+      return r;
+    });
+  }
+
+  /// @昵称 → 搜索接口精确匹配昵称 → 用户主页；非登录/找不到/接口异常给提示
+  Future<void> _openMentionProfile(String name) async {
+    if (!_isLoggedIn) {
+      _toast('请先登录后再点亮航标');
+      return;
+    }
+    try {
+      final list = await _api.searchUsers(name);
+      CloudUserSearchItem? match;
+      for (final u in list) {
+        if (u.nickname == name) {
+          match = u;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (match == null) {
+        _toast('未找到该船员');
+        return;
+      }
+      _openProfile(match.userId);
+    } on ApiException catch (e) {
+      _toast(e.code == 401 ? '登录已失效，请重新登录' : '未找到该船员');
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final r in _mentionTaps.values) {
+      r.dispose();
+    }
+    _mentionTaps.clear();
+    super.dispose();
+  }
 
   /// 统一日期展示（需求：与帖子格式一致 yyyy-MM-dd HH:mm:ss；
   /// 后端 SQLite datetime('now','localtime') 已是完整格式，直接透传；
