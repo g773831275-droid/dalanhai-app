@@ -564,7 +564,8 @@ class CommentSectionState extends State<CommentSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ...?t?.visible().map((r) => _buildReply(r, parent: c)),
-                if (t == null || (t.total > 2 && !t.expanded) || t.loading || (t.expanded && !t.loadedAll))
+                // 按钮显示：预热失败兜底(t==null) / 收起态超2条 / 展开分页中 / 展开完（收起回复）
+                if (t == null || t.loading || t.total > 2 || (t.expanded && !t.loadedAll))
                   _buildExpandButton(c.commentId, t ?? _threadOf(c.commentId)),
               ],
             ),
