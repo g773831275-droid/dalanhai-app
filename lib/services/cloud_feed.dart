@@ -29,6 +29,10 @@ final ValueNotifier<int> kCloudFeedRefreshSignal = ValueNotifier<int>(0);
 /// 港口流本地精确移除走 loader.removePostById，船长页等订阅本信号重拉列表）
 final ValueNotifier<int> kPostDeletedSignal = ValueNotifier<int>(0);
 
+/// 评论数变更全局信号（v2.9.7.1 详情页发评论/删评论 value++；
+/// 船长页「我的日志」等独立列表订阅后重拉，保证评论计数与详情页一致）
+final ValueNotifier<int> kCommentCountChangedSignal = ValueNotifier<int>(0);
+
 /// 发帖成功后的定位信号（v2.9.3 → 改 Stream 广播流）：
 /// ValueNotifier 依赖值变更触发，同值/快速连续发送存在漏触发问题；
 /// broadcast Stream 每一次 add 都是独立事件，连续发多条帖每条都能收到。

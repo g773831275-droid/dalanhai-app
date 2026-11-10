@@ -280,27 +280,44 @@ class _UserProfilePageState extends State<UserProfilePage> {
       );
     }
     final p = _profile!;
-    return SingleChildScrollView(
-      controller: _scrollCtrl,
-      padding: const EdgeInsets.fromLTRB(14, 8, 14, 60),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHero(p),
-          if (!p.isSelf) _buildActionRow(p),
-          const SizedBox(height: 14),
-          ProfileStatsGrid(
-            stats: p.stats,
-            onFollowingTap: () => _openFollowList(p, false),
-            onFollowersTap: () => _openFollowList(p, true),
-          ),
-          const SizedBox(height: 4),
-          ProfileSectionTitle('征服证书 · Certificates'),
-          ProfileCertGallery(certificates: p.certificates),
-          _buildPostsSection(p),
-        ],
+    // 下拉刷新：重拉主页资料 + 日志列表，评论/点赞计数与详情、港口口径对齐
+    return RefreshIndicator(
+      color: AppColors.gold,
+      backgroundColor: AppColors.deep,
+      onRefresh: _onRefresh,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        controller: _scrollCtrl,
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 60),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHero(p),
+            if (!p.isSelf) _buildActionRow(p),
+            const SizedBox(height: 14),
+            ProfileStatsGrid(
+              stats: p.stats,
+              onFollowingTap: () => _openFollowList(p, false),
+              onFollowersTap: () => _openFollowList(p, true),
+            ),
+            const SizedBox(height: 4),
+            ProfileSectionTitle('征服证书 · Certificates'),
+            ProfileCertGallery(certificates: p.certificates),
+            _buildPostsSection(p),
+          ],
+        ),
       ),
     );
+  }
+
+  /// 下拉刷新：清空日志列表重拉 + 重拉主页资料
+  Future<void> _onRefresh() async {
+    setState(() {
+      _posts.clear();
+      _reachedEnd = false;
+      _loadingPosts = true;
+    });
+    await Future.wait([_loadProfile(), _loadPostsFirst()]);
   }
 
   // ── 头像区：圆形头像 + 昵称 + 航级标签占位 + 简介 ──

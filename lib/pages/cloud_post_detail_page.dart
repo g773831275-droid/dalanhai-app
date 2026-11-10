@@ -339,6 +339,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
       setState(() {
         _post = _copyWith(commentCount: r.commentCount);
         widget.loader?.applyCommentCount(_post.postId, r.commentCount);
+        kCommentCountChangedSignal.value++; // 船长页等独立列表同步评论计数
         _commentCtrl.clear();
         _replyTarget = null;
         _hintText = '说点什么…';
@@ -586,6 +587,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                       onCountChanged: (int remain) {
                         setState(() => _post = _copyWith(commentCount: remain));
                         widget.loader?.applyCommentCount(_post.postId, remain);
+                        kCommentCountChangedSignal.value++; // 船长页等独立列表同步评论计数
                       },
                     ),
                     const SizedBox(height: 80),

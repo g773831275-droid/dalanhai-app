@@ -46,11 +46,11 @@ class CommentSection extends StatefulWidget {
   State<CommentSection> createState() => CommentSectionState();
 }
 
-/// 子评论线程（一条一级评论的回复集合 + 分页/展开状态）
+/// 子评论线程（一条一级评论的回复集合 + 分页/展开状态）。
+/// 预热阶段 list = 前 2 条（折叠展示）；展开后拉全部，收起仅视觉折叠回前 2 条。
 class _ReplyThread {
   final List<CloudComment> list = <CloudComment>[];
   int total = 0;
-  int page = 0;
   bool expanded = false;
   bool loading = false;
 
@@ -96,6 +96,7 @@ class CommentSectionState extends State<CommentSection> {
         _reachedEnd = !r.hasMore;
         _loading = false;
       });
+      _prefetchReplies(r.list); // 预热每条一级评论的前 2 条子回复（折叠展示）
     } on ApiException {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -114,11 +115,33 @@ class CommentSectionState extends State<CommentSection> {
         _comments.addAll(r.list.where((c) => !known.contains(c.commentId)));
         _reachedEnd = !r.hasMore;
       });
+      _prefetchReplies(r.list);
     } on ApiException {
       // 静默（下次触底再试）
     } finally {
       _loadingMore = false;
       if (mounted) setState(() {});
+    }
+  }
+
+  /// 预热子回复：默认折叠展示前 2 条（超过 2 条出「查看余下 X 条回复」按钮）。
+  /// 只拉有回复且未加载过 thread 的一级评论；失败静默（展开时可重试）。
+  Future<void> _prefetchReplies(List<CloudComment> parents) async {
+    for (final c in parents) {
+      if (c.replyCount <= 0 || _threads.containsKey(c.commentId)) continue;
+      try {
+        final PagedComments r =
+            await _api.fetchReplies(c.commentId, page: 1, size: 2);
+        if (!mounted) return;
+        setState(() {
+          final t = _threads.putIfAbsent(c.commentId, () => _ReplyThread());
+          final known = t.list.map((x) => x.commentId).toSet();
+          t.list.addAll(r.list.where((x) => !known.contains(x.commentId)));
+          t.total = r.total; // 后端口径的子回复总数（与「X 条回复」标注对齐）
+        });
+      } on ApiException {
+        // 单条预热失败不影响其他评论
+      }
     }
   }
 
@@ -165,20 +188,22 @@ class CommentSectionState extends State<CommentSection> {
     });
   }
 
+  /// 展开：从当前已加载数继续向后拉（首页预热了前 2 条 size=2；
+  /// 展开拉 size=50 大页，与已加载的去重合并；total>50 时按钮继续分页）
   Future<void> _expandReplies(int rootId) async {
     final t = _threadOf(rootId);
     if (t.loading) return;
     t.loading = true;
     if (mounted) setState(() {}); // 按钮位置换转圈
     try {
-      final PagedComments r =
-          await _api.fetchReplies(rootId, page: t.page + 1, size: 10);
+      final int size = t.list.length < 50 ? 50 : 50;
+      final int page = t.expanded ? (t.list.length / size).floor() + 1 : 1;
+      final PagedComments r = await _api.fetchReplies(rootId, page: page, size: size);
       if (!mounted) return;
       setState(() {
         final known = t.list.map((x) => x.commentId).toSet();
         t.list.addAll(r.list.where((x) => !known.contains(x.commentId)));
         t.total = r.total;
-        t.page += 1;
         t.expanded = true;
       });
     } on ApiException {
@@ -530,17 +555,17 @@ class CommentSectionState extends State<CommentSection> {
             )),
           ]),
         ),
-        // 子评论（缩进树）
-        if (t != null && t.list.isNotEmpty) ...[
+        // 子评论（缩进树）。预热失败（thread 缺失）但 replyCount>2 时仍出展开按钮兜底
+        if ((t != null && t.list.isNotEmpty) || (t == null && c.replyCount > 2)) ...[
           const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.only(left: 36),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ...t.visible().map((r) => _buildReply(r, parent: c)),
-                if ((t.total > 2 && !t.expanded) || t.loading || (t.expanded && !t.loadedAll))
-                  _buildExpandButton(c.commentId, t),
+                ...?t?.visible().map((r) => _buildReply(r, parent: c)),
+                if (t == null || (t.total > 2 && !t.expanded) || t.loading || (t.expanded && !t.loadedAll))
+                  _buildExpandButton(c.commentId, t ?? _threadOf(c.commentId)),
               ],
             ),
           ),
@@ -609,7 +634,8 @@ class CommentSectionState extends State<CommentSection> {
     );
   }
 
-  /// 展开/收起按钮（查看全部 N 条回复 / 转圈 / 收起回复）
+  /// 展开/收起按钮（查看余下 X 条回复 / 转圈 / 收起回复）。
+  /// 渲染前提由调用方保证：total > 2 或展开未加载完时才出现。
   Widget _buildExpandButton(int rootId, _ReplyThread t) {
     Widget child;
     if (t.loading) {
@@ -624,8 +650,9 @@ class CommentSectionState extends State<CommentSection> {
       child = const Text('收起回复',
           style: TextStyle(color: AppColors.sky, fontSize: 12));
     } else {
+      // 收起状态：X = 总数 - 已展示前2条；展开分页中：X = 总数 - 已加载
       final n = t.expanded ? (t.total - t.list.length) : (t.total - 2);
-      child = Text('查看全部 $n 条回复',
+      child = Text('查看余下 $n 条回复',
           style: const TextStyle(color: AppColors.sky, fontSize: 12));
     }
     return GestureDetector(

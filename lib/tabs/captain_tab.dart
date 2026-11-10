@@ -77,6 +77,12 @@ class _CaptainTabState extends State<CaptainTab> {
     FollowState.instance.addListener(_onStoreChanged);
     // 详情页删除日志 → 全局信号 → 重拉日志列表（本页常驻不重建）
     kPostDeletedSignal.addListener(_onPostDeleted);
+    // 详情页发评论/删评论 → 全局信号 → 重拉日志列表（评论计数对齐）
+    kCommentCountChangedSignal.addListener(_onCommentCountChanged);
+  }
+
+  void _onCommentCountChanged() {
+    _loadPosts(); // 重拉后 comment_count 与详情/港口一致
   }
 
   void _onPostDeleted() {
@@ -104,6 +110,7 @@ class _CaptainTabState extends State<CaptainTab> {
     _boundStore?.removeListener(_onStoreChanged);
     FollowState.instance.removeListener(_onStoreChanged);
     kPostDeletedSignal.removeListener(_onPostDeleted);
+    kCommentCountChangedSignal.removeListener(_onCommentCountChanged);
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -248,28 +255,37 @@ class _CaptainTabState extends State<CaptainTab> {
     // 登录闸门在 app.dart _onTabSelected 拦截 → 未登录点本 Tab 直接开登录页
     if (captain == null) return const SizedBox.shrink();
 
-    return SingleChildScrollView(
-      controller: _scrollCtrl,
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHero(captain),
-          const SizedBox(height: 14),
-          _buildStats(),
-          ProfileSectionTitle('征服证书 · Certificates'),
-          _buildCerts(),
-          ProfileSectionTitle('航海日志 · SAIL LOG'),
-          _buildTabBar(),
-          _buildPostsList(),
-          const SizedBox(height: 24),
-          const Center(
-            child: Text(
-              'GRAND BLUE · V1.3',
-              style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2),
+    // 下拉刷新：重拉统计 + 日志列表，评论/点赞计数与详情、港口口径对齐
+    return RefreshIndicator(
+      color: AppColors.gold,
+      backgroundColor: AppColors.deep,
+      onRefresh: () async {
+        await Future.wait([_loadProfile(), _loadPosts()]);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        controller: _scrollCtrl,
+        padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildHero(captain),
+            const SizedBox(height: 14),
+            _buildStats(),
+            ProfileSectionTitle('征服证书 · Certificates'),
+            _buildCerts(),
+            ProfileSectionTitle('航海日志 · SAIL LOG'),
+            _buildTabBar(),
+            _buildPostsList(),
+            const SizedBox(height: 24),
+            const Center(
+              child: Text(
+                'GRAND BLUE · V1.3',
+                style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
