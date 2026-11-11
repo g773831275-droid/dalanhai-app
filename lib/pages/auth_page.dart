@@ -452,7 +452,7 @@ class _AuthPageState extends State<AuthPage> {
       _Field(label: '账号 · ACCOUNT', child: TextField(
         controller: _acctCtrl,
         style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '手机号 / 邮箱 / 创始人账号'),
+        decoration: const InputDecoration(hintText: '手机/邮箱/大蓝海账号'),
       )),
       const SizedBox(height: 16),
       _Field(label: '密码 · PASSWORD', child: TextField(
