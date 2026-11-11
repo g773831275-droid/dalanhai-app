@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -152,10 +153,16 @@ class CloudApi {
     late http.Response res;
     try {
       // GET/POST/PATCH 统一走 Request.send（method 原样发出；PATCH 必须真发 PATCH）
-      final http.StreamedResponse streamed = await client.send(req);
-      res = await http.Response.fromStream(streamed);
+      // 超时兜底：连接+读响应各 15s，防止服务端失联时请求永久挂起
+      // （曾导致置顶/取消置顶后 _topBusy、_loadingPosts 永久锁死、无限转圈）
+      const Duration timeout = Duration(seconds: 15);
+      final http.StreamedResponse streamed =
+          await client.send(req).timeout(timeout);
+      res = await http.Response.fromStream(streamed).timeout(timeout);
     } on SocketException {
       throw const ApiException('网络不可用，请检查网络后重试');
+    } on TimeoutException {
+      throw const ApiException('请求超时，请稍后重试');
     } finally {
       // 注入的客户端由调用方管理生命周期；默认客户端一次性用完即关
       if (httpClientOverride == null) client.close();

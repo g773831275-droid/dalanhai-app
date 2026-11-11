@@ -145,6 +145,13 @@ class _CaptainTabState extends State<CaptainTab> {
     } on ApiException {
       // 主页数据加载失败静默（未登录/网络异常时保持现值，下次通知再试；
       // 统计/证书保持占位，日志列表独立加载）
+      // 终态兜底：若此前从未成功加载过，置空 profile 终止证书区转圈，
+      // 避免 loading 永久卡死（请求超时后 UI 必须可达可交互）
+      if (!mounted || _profile != null) return;
+      setState(() {
+        _profile = CloudUserProfile(
+            uid: 0, isSelf: true, stats: const CloudProfileStats());
+      });
     }
   }
 
@@ -296,9 +303,28 @@ class _CaptainTabState extends State<CaptainTab> {
     );
   }
 
+  /// 置顶状态乐观回显：立即改本地列表（isTop + 排序），不等网络刷新。
+  /// 排序规则与后端一致：is_top DESC, id DESC。
+  void _applyTopLocally(int postId, bool top) {
+    setState(() {
+      final updated = _myPosts
+          .map((p) => p.postId == postId ? p.copyWith(isTop: top) : (top ? p.copyWith(isTop: false) : p))
+          .toList()
+        ..sort((a, b) {
+          if (a.isTop != b.isTop) return a.isTop ? -1 : 1;
+          return b.postId.compareTo(a.postId);
+        });
+      _myPosts
+        ..clear()
+        ..addAll(updated);
+    });
+  }
+
   /// 置顶 / 取消置顶。置顶第二条时弹替换确认（确认后后端自动清旧置顶）。
+  /// 无论成功失败（含超时），finally 释放 _topBusy，长按菜单始终可再次唤起。
   Future<void> _toggleTop(CloudPost post) async {
     if (_topBusy) return;
+    final nowTop = !post.isTop;
     if (!post.isTop) {
       final hasOtherPinned =
           _myPosts.any((p) => p.isTop && p.postId != post.postId);
@@ -327,10 +353,11 @@ class _CaptainTabState extends State<CaptainTab> {
     }
     _topBusy = true;
     try {
-      await CloudApi.instance.setPostTop(post.postId, isTop: !post.isTop);
+      await CloudApi.instance.setPostTop(post.postId, isTop: nowTop);
       if (!mounted) return;
-      _toast(post.isTop ? '已取消置顶' : '已置顶该日志');
-      await _loadPosts();
+      _applyTopLocally(post.postId, nowTop); // 标签/排序即时回显
+      _toast(nowTop ? '已置顶该日志' : '已取消置顶');
+      unawaited(_loadPosts()); // 后台对账刷新；失败由其内部 toast，不阻塞交互
     } on ApiException catch (e) {
       if (!mounted) return;
       showAlertToast(context, e.code == 403 ? '只有日志作者可以置顶' : e.message);

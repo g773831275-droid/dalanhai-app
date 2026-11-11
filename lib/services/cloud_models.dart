@@ -95,6 +95,23 @@ class CloudPost {
 
   /// v2.9.8：主页日志置顶（仅影响 /api/user/:uid/posts 列表排序，港口流不受影响）
   final bool isTop;
+
+  /// 乐观更新用（如置顶状态即时回显，不等网络刷新）
+  CloudPost copyWith({bool? isTop}) => CloudPost(
+        postId: postId,
+        type: type,
+        content: content,
+        author: author,
+        coverKey: coverKey,
+        coverKeys: coverKeys,
+        island: island,
+        tags: tags,
+        likeCount: likeCount,
+        liked: liked,
+        commentCount: commentCount,
+        createdAt: createdAt,
+        isTop: isTop ?? this.isTop,
+      );
 }
 
 /// 分页通用结构
