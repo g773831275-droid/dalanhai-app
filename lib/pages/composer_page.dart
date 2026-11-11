@@ -9,6 +9,7 @@ import '../services/image_pipeline.dart';
 import '../services/media_rules.dart';
 import '../services/session_store.dart';
 import '../app.dart' show appTabIndex;
+import '../widgets/at_user_picker.dart';
 
 /// 发帖页 — v2.9.2 起接通云端（此前只写本地 DataStore，云端列表永远看不到新帖）
 ///
@@ -27,6 +28,7 @@ class ComposerPage extends StatefulWidget {
 
 class _ComposerPageState extends State<ComposerPage> {
   final _textCtrl = TextEditingController();
+  final _focusNode = FocusNode(); // 主输入框焦点（@弹窗打开期间保持键盘）
   final _selectedTags = <String>{};
   // v2.6.1 媒体规范：单帖最多 4 张（后端强校验，前端同规则前置拦截）
   final List<String?> _images = List<String?>.filled(MediaRules.imageMaxPerPost, null);
@@ -44,6 +46,11 @@ class _ComposerPageState extends State<ComposerPage> {
   final _picker = ImagePicker();
   final CloudApi _api = CloudApi.instance;
   bool _submitting = false; // 防重复提交（发布中禁用按钮）
+
+  // ── @用户唤起（v2.9.9：与评论区/详情页回复输入框同一套交互，复用 AtUserPicker）──
+  int _lastTextLength = 0; // 删字检测（文本变短 → 打开中的 @弹窗自动收起）
+  bool _atPickerOpen = false; // @搜索弹窗是否打开
+  VoidCallback? _closeAtPicker; // 弹窗程序化关闭句柄
 
   /// 选择图片（点击图片槽触发）
   /// v2.6.1 压缩管线：长边 2048px / 画质 0.7~0.8 / 目标 ≤5MB（后端硬上限 10MB 兜底）；
@@ -76,6 +83,70 @@ class _ComposerPageState extends State<ComposerPage> {
   /// 删除图片（点击已选图片）
   void _removeImage(int slot) {
     setState(() => _images[slot] = null);
+  }
+
+  // ── @ 触发检测（与详情页 _onCommentChanged 同款规则）──────────
+  // - 仅当【光标前紧邻单独 @（@ 后无任何字符）】才拉起搜索 —— 删 @ 后面
+  //   文字的过程中 before 是「@xxx」不满足条件，不会反复触发；
+  // - 删字（文本变短）时，打开中的 @搜索弹窗自动收起；
+  // - 兼容中文 IME 的全角＠。
+  void _onComposerChanged(String text) {
+    if (text.length < _lastTextLength && _atPickerOpen) {
+      _closeAtPicker?.call();
+    }
+    _lastTextLength = text.length;
+
+    final sel = _textCtrl.selection;
+    final bool beforeAt = sel.isValid &&
+        sel.baseOffset > 0 &&
+        sel.baseOffset <= text.length &&
+        (text.substring(0, sel.baseOffset).endsWith('@') ||
+            text.substring(0, sel.baseOffset).endsWith('＠'));
+    if (!_atPickerOpen && beforeAt) {
+      _openAtPicker(sel.baseOffset - 1);
+    }
+  }
+
+  /// @用户选择弹窗：选中后在光标位置插入 @昵称␣，光标后置。
+  /// 逻辑与详情页回复输入框一致（帖子接口无 atUserIds，仅插入文本不记录 uid）。
+  Future<void> _openAtPicker(int atStart) async {
+    _atPickerOpen = true;
+    // 捕获弹窗 ctx 供删字时程序化关闭（与详情页同款修复）
+    BuildContext? sheetCtx;
+    _closeAtPicker = () {
+      final c = sheetCtx;
+      if (c != null && c.mounted) Navigator.of(c).pop();
+    };
+    final sheetFuture = showModalBottomSheet<(String, int)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      // 键盘避让：浮在输入法上方，否则被键盘完全遮挡
+      builder: (bCtx) {
+        sheetCtx = bCtx;
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(bCtx).viewInsets.bottom),
+          child: AtUserPicker(onClose: () => Navigator.pop(bCtx)),
+        );
+      },
+    );
+    // 弹窗打开后把焦点还给主输入框：键盘不收起，退格删 @ 可触发自动收起
+    // （sheet 打开会丢焦点 → 键盘收起 → 删字检测失效）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
+    });
+    final picked = await sheetFuture;
+    _atPickerOpen = false;
+    _closeAtPicker = null;
+    if (!mounted || picked == null) return;
+    final (nickname, _) = picked;
+    final text = _textCtrl.text;
+    // 替换光标前的 @片段 为 @昵称␣
+    final end = _textCtrl.selection.baseOffset;
+    final safeEnd = end >= atStart && end <= text.length ? end : text.length;
+    _textCtrl.text = '${text.substring(0, atStart)}@$nickname ${text.substring(safeEnd)}';
+    _textCtrl.selection = TextSelection.collapsed(offset: atStart + nickname.length + 2);
+    _lastTextLength = _textCtrl.text.length;
   }
 
   Future<void> _submit() async {
@@ -198,6 +269,7 @@ class _ComposerPageState extends State<ComposerPage> {
   @override
   void dispose() {
     _textCtrl.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -226,6 +298,8 @@ class _ComposerPageState extends State<ComposerPage> {
                       ),
                       child: TextField(
                         controller: _textCtrl,
+                        focusNode: _focusNode,
+                        onChanged: _onComposerChanged, // @ 触发检测（v2.9.9）
                         maxLines: 6,
                         minLines: 4,
                         maxLength: 800,
