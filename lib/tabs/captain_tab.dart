@@ -71,6 +71,12 @@ class _CaptainTabState extends State<CaptainTab> {
   bool _topBusy = false; // 置顶/批量删除请求防抖
   final Set<int> _selectedIds = <int>{}; // 批量模式已勾选 postId
 
+  // ── 批量操作栏吸顶（锚点=船长导航栏底部，即本 Tab 视口顶部）──
+  // 流内 banner 挂 GlobalKey 用于定位；吸顶时流内 banner 原位保留高度
+  // （不可见+不可命中，天然防布局抖动），由视口顶部叠层渲染同款 banner。
+  final GlobalKey _batchBarKey = GlobalKey();
+  bool _batchBarStuck = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,6 +134,8 @@ class _CaptainTabState extends State<CaptainTab> {
   }
 
   void _onScroll() {
+    // 批量操作栏吸顶判定：banner 顶部触碰本 Tab 视口顶部（=导航栏底部）
+    _updateBatchBarStuck();
     if (_scrollCtrl.position.pixels >
         _scrollCtrl.position.maxScrollExtent - 300) {
       _loadMore();
@@ -230,6 +238,7 @@ class _CaptainTabState extends State<CaptainTab> {
       // 切 Tab 退出批量模式（批量仅限我的日志）
       _batchMode = false;
       _selectedIds.clear();
+      _batchBarStuck = false;
     });
     _loadPosts();
     if (_scrollCtrl.hasClients) {
@@ -393,7 +402,27 @@ class _CaptainTabState extends State<CaptainTab> {
     setState(() {
       _batchMode = false;
       _selectedIds.clear();
+      _batchBarStuck = false;
     });
+  }
+
+  /// 吸顶判定（仅批量模式生效）：流内 banner 顶部 ≤ 本 Tab 视口顶部
+  /// （视口顶部即船长导航栏底部）→ 吸顶；回滚离开该位置 → 解除。
+  /// 在滚动监听与帧回调中调用，状态翻转才 setState，滚动帧零额外开销。
+  void _updateBatchBarStuck() {
+    var stuck = false;
+    if (_batchMode && !_likedTab) {
+      final barCtx = _batchBarKey.currentContext;
+      if (barCtx != null) {
+        final barBox = barCtx.findRenderObject()! as RenderBox;
+        final rootBox = context.findRenderObject()! as RenderBox;
+        stuck = barBox.localToGlobal(Offset.zero).dy <=
+            rootBox.localToGlobal(Offset.zero).dy + 0.5;
+      }
+    }
+    if (_batchBarStuck != stuck) {
+      setState(() => _batchBarStuck = stuck);
+    }
   }
 
   /// 批量删除：二次确认 → 批量接口 → 刷新列表（删置顶帖后端自动清置顶标记）
@@ -476,36 +505,53 @@ class _CaptainTabState extends State<CaptainTab> {
     if (captain == null) return const SizedBox.shrink();
 
     // 下拉刷新：重拉统计 + 日志列表，评论/点赞计数与详情、港口口径对齐
+    // 每帧后复核吸顶状态（列表重载/批量开启等布局变化不依赖滚动也能同步）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateBatchBarStuck();
+    });
     return RefreshIndicator(
       color: AppColors.gold,
       backgroundColor: AppColors.deep,
       onRefresh: () async {
         await Future.wait([_loadProfile(), _loadPosts()]);
       },
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        controller: _scrollCtrl,
-        padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHero(captain),
-            const SizedBox(height: 14),
-            _buildStats(),
-            ProfileSectionTitle('征服证书 · Certificates'),
-            _buildCerts(),
-            ProfileSectionTitle('航海日志 · SAIL LOG'),
-            _buildTabBar(),
-            _buildPostsList(),
-            const SizedBox(height: 24),
-            const Center(
-              child: Text(
-                'GRAND BLUE · V1.3',
-                style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2),
-              ),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHero(captain),
+                const SizedBox(height: 14),
+                _buildStats(),
+                ProfileSectionTitle('征服证书 · Certificates'),
+                _buildCerts(),
+                ProfileSectionTitle('航海日志 · SAIL LOG'),
+                _buildTabBar(),
+                _buildPostsList(),
+                const SizedBox(height: 24),
+                const Center(
+                  child: Text(
+                    'GRAND BLUE · V1.3',
+                    style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          // 批量操作栏吸顶层：固定在船长导航栏正下方（本 Tab 视口顶部），
+          // 与导航栏互不遮挡；样式/回调与流内 banner 完全同源
+          if (_batchMode && !_likedTab && _batchBarStuck)
+            Positioned(
+              left: 14,
+              right: 14,
+              top: 0,
+              child: _buildBatchBar(),
+            ),
+        ],
       ),
     );
   }
@@ -799,7 +845,19 @@ class _CaptainTabState extends State<CaptainTab> {
     return Column(
       children: [
         // v2.9.8 批量模式操作栏（仅我的日志；【全选】【删除选中】【退出批量】）
-        if (_batchMode && !_likedTab) _buildBatchBar(),
+        // 吸顶时原位保留高度占位（不可见+不可命中）→ 列表零跳动；
+        // 可见副本由 build 中 Stack 吸顶层渲染，样式/回调同源
+        if (_batchMode && !_likedTab)
+          IgnorePointer(
+            ignoring: _batchBarStuck,
+            child: Opacity(
+              opacity: _batchBarStuck ? 0.0 : 1.0,
+              child: KeyedSubtree(
+                key: _batchBarKey,
+                child: _buildBatchBar(),
+              ),
+            ),
+          ),
         // 点赞的日志：作者头像点击进对方主页；我的日志：进自身公开预览。
         // 长按菜单/批量勾选仅限我的日志；点赞的日志 Tab 无菜单
         ..._currentPosts.map((post) {
