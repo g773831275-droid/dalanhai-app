@@ -55,7 +55,9 @@ class _AtUserPickerState extends State<AtUserPicker> {
     try {
       final r = await _api.searchUsers(_searchCtrl.text);
       if (!mounted) return;
-      setState(() => _results = r);
+      // 按 userId 去重：同一用户只保留一条，杜绝列表重复条目
+      final seen = <int>{};
+      setState(() => _results = r.where((u) => seen.add(u.userId)).toList());
     } on ApiException {
       if (!mounted) return;
       setState(() => _results = []);
