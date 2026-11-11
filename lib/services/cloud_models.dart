@@ -543,6 +543,26 @@ class CloudUserProfile {
   final bool isSelf;
   final bool following;
   final CloudProfileStats stats;
+
+  /// 粉丝数本地乐观 ±1（关注/取关即时反馈用；其余字段原样拷贝）
+  CloudUserProfile withFollowers(int followers) => CloudUserProfile(
+        uid: uid,
+        nickname: nickname,
+        avatar: avatar,
+        bio: bio,
+        sailLevel: sailLevel,
+        showSailLevelTag: showSailLevelTag,
+        isSelf: isSelf,
+        following: following,
+        stats: CloudProfileStats(
+          posts: stats.posts,
+          following: stats.following,
+          followers: followers,
+          totalCheckins: stats.totalCheckins,
+          maxStreak: stats.maxStreak,
+        ),
+        certificates: certificates,
+      );
   final List<CloudCertificate> certificates;
 
   /// 展示名（与 CloudAuthor 同口径）：昵称优先 → 船长{id}

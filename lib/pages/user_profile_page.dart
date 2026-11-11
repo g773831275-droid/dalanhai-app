@@ -69,7 +69,9 @@ class _UserProfilePageState extends State<UserProfilePage> {
     }
   }
 
-  Future<void> _loadProfile() async {
+  /// 拉取主页资料。[silent]=true 时失败不改整页为错误态（对账场景用：
+  /// 乐观值已展示，失败静默，下拉刷新会再次拉取对账）
+  Future<void> _loadProfile({bool silent = false}) async {
     try {
       final p = await _api.fetchUserProfile(widget.uid);
       if (!mounted) return;
@@ -80,7 +82,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
         _loadingProfile = false;
       });
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || silent) return;
       setState(() {
         _fatal = e.code == 404 ? '该船长已消失在茫茫大海' : e.message;
         _loadingProfile = false;
@@ -125,21 +127,59 @@ class _UserProfilePageState extends State<UserProfilePage> {
   }
 
   // ── 关注 / 取关（FollowState 全局联动：详情页/主页双向实时同步）──
+  //
+  // 乐观更新：点击即时翻转按钮状态并本地 ±1 粉丝数。移动网络下 POST 可能
+  // 迟滞数秒乃至更久（服务端已实测秒回，延迟发生在端侧链路），若等回包才刷
+  // 新，用户在迟滞窗口内下拉刷新会拉到旧粉丝数——即"关注后刷新不变"假象。
+  // 回包成功后静默重拉一次 profile 以服务端真值对账；失败回滚本地状态并 toast。
+  Future<void>? _pendingToggle; // 在途关注/取关请求（下拉刷新需先等它落地）
+
   Future<void> _toggleFollow() async {
     if (_followBusy) return;
     if (!SessionStore.instance.hasToken) {
       _toast('请先登录后再关注其他船长');
       return;
     }
+    final bool before =
+        FollowState.instance.of(widget.uid) ?? (_profile?.following ?? false);
+    final bool after = !before;
     _followBusy = true;
+    // ① 乐观更新（按钮经 FollowState.notifyListeners 即时重建）
+    FollowState.instance.set(widget.uid, after);
+    _applyLocalFollowers(after ? 1 : -1);
+    final op = () async {
+      try {
+        await FollowState.instance.toggle(widget.uid); // 服务端真值写入 cache
+        if (!mounted) return;
+        await _loadProfile(silent: true); // ② 服务端真值对账（粉丝数/按钮状态）
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        // ③ 失败回滚乐观状态
+        FollowState.instance.set(widget.uid, before);
+        _applyLocalFollowers(after ? -1 : 1);
+        _toast(e.code == 401 ? '登录已失效，请重新登录' : e.message);
+      } catch (_) {
+        if (!mounted) return;
+        FollowState.instance.set(widget.uid, before);
+        _applyLocalFollowers(after ? -1 : 1);
+      }
+    }();
+    _pendingToggle = op;
     try {
-      await FollowState.instance.toggle(widget.uid);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      _toast(e.code == 401 ? '登录已失效，请重新登录' : e.message);
+      await op;
     } finally {
+      if (identical(_pendingToggle, op)) _pendingToggle = null;
       _followBusy = false;
     }
+  }
+
+  /// 本地乐观调整粉丝数（不触发网络）
+  void _applyLocalFollowers(int delta) {
+    final p = _profile;
+    if (p == null) return;
+    setState(() {
+      _profile = p.withFollowers(p.stats.followers + delta);
+    });
   }
 
   // ── 拉黑（···菜单 → 标准二次确认弹窗）──
@@ -310,13 +350,21 @@ class _UserProfilePageState extends State<UserProfilePage> {
     );
   }
 
-  /// 下拉刷新：清空日志列表重拉 + 重拉主页资料
+  /// 下拉刷新：清空日志列表重拉 + 重拉主页资料。
+  /// 若有关注/取关请求在途（网络迟滞），先等它落地再拉——防止拉到旧粉丝数。
   Future<void> _onRefresh() async {
     setState(() {
       _posts.clear();
       _reachedEnd = false;
       _loadingPosts = true;
     });
+    final pending = _pendingToggle;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {// 对账失败不阻塞刷新（_loadProfile 会再拉一次真值）
+      }
+    }
     await Future.wait([_loadProfile(), _loadPostsFirst()]);
   }
 
