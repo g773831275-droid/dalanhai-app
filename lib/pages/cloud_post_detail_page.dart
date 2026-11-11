@@ -13,6 +13,7 @@ import '../theme/typography.dart';
 import '../widgets/at_user_picker.dart';
 import '../widgets/comment_section.dart';
 import '../widgets/image_viewer.dart';
+import '../widgets/mention_text.dart';
 import '../widgets/social_dialogs.dart';
 import '../widgets/user_avatar.dart';
 import 'user_profile_page.dart';
@@ -306,10 +307,6 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
         );
       },
     );
-    // 弹窗打开后焦点还给评论输入框：键盘不收起，退格删 @ 可自动收起弹窗
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) FocusScope.of(context).requestFocus(_commentFocus);
-    });
     final picked = await sheetFuture;
     _atPickerOpen = false;
     _closeAtPicker = null;
@@ -323,6 +320,8 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
     _commentCtrl.text = '${text.substring(0, atStart)}@$nickname ${text.substring(safeEnd)}';
     _commentCtrl.selection = TextSelection.collapsed(offset: atStart + nickname.length + 2);
     _lastTextLength = _commentCtrl.text.length;
+    // 回填后焦点还给评论输入框（弹窗期间焦点在搜索框），键盘不收、可继续输入
+    if (mounted) FocusScope.of(context).requestFocus(_commentFocus);
     setState(() {});
   }
 
@@ -556,7 +555,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                     ]),
                     const SizedBox(height: 16),
                     if (_post.content.isNotEmpty)
-                      Text(_post.content,
+                      MentionText(text: _post.content,
                           style: AppTypography.body.copyWith(fontSize: 15, height: 1.7)),
                     if (_post.tags.isNotEmpty) ...[
                       const SizedBox(height: 12),

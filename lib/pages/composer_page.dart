@@ -130,11 +130,6 @@ class _ComposerPageState extends State<ComposerPage> {
         );
       },
     );
-    // 弹窗打开后把焦点还给主输入框：键盘不收起，退格删 @ 可触发自动收起
-    // （sheet 打开会丢焦点 → 键盘收起 → 删字检测失效）
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
-    });
     final picked = await sheetFuture;
     _atPickerOpen = false;
     _closeAtPicker = null;
@@ -147,6 +142,8 @@ class _ComposerPageState extends State<ComposerPage> {
     _textCtrl.text = '${text.substring(0, atStart)}@$nickname ${text.substring(safeEnd)}';
     _textCtrl.selection = TextSelection.collapsed(offset: atStart + nickname.length + 2);
     _lastTextLength = _textCtrl.text.length;
+    // 回填后焦点还给主输入框（弹窗期间焦点在搜索框），键盘不收、可继续输入
+    if (mounted) FocusScope.of(context).requestFocus(_focusNode);
   }
 
   Future<void> _submit() async {

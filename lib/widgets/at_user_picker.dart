@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/cloud_api.dart';
 import '../services/cloud_models.dart';
@@ -82,11 +83,22 @@ class _AtUserPickerState extends State<AtUserPicker> {
             padding: const EdgeInsets.fromLTRB(16, 0, 8, 10),
             child: Row(children: [
               Expanded(
-                child: TextField(
-                  controller: _searchCtrl,
-                  // v2.9.9：不做 autofocus —— 焦点留在主输入框，删 @ 可自动
-                  // 收起本弹窗；用户点搜索框后才开始过滤搜索
-                  style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 14),
+                child: Focus(
+                  // 搜索框为空时按退格 → 关闭弹窗（对标删 @ 撤销的快捷路径；
+                  // 部分软键盘空文本退格不派发 KeyEvent，属无害兜底）
+                  onKeyEvent: (node, event) {
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.backspace &&
+                        _searchCtrl.text.isEmpty) {
+                      widget.onClose?.call();
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: TextField(
+                    controller: _searchCtrl,
+                    autofocus: true, // v2.9.9：弹窗弹出即聚焦，可直接打字搜索
+                    style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 14),
                   decoration: InputDecoration(
                     hintText: '搜索昵称，选择要 @ 的船长',
                     hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
@@ -100,6 +112,7 @@ class _AtUserPickerState extends State<AtUserPicker> {
                     ),
                   ),
                 ),
+              ),
               ),
               IconButton(
                 icon: const Icon(Icons.close, size: 18, color: AppColors.sub),

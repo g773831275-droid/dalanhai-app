@@ -5,6 +5,7 @@ import '../services/cloud_feed.dart';
 import '../services/cloud_models.dart';
 import '../theme/colors.dart';
 import 'image_viewer.dart';
+import 'mention_text.dart';
 import 'user_avatar.dart';
 
 /// 云端日志卡片（v2.9.6 公共组件）—— 样式与港口流 _CloudCard 完全一致。
@@ -121,8 +122,8 @@ class CloudPostCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       if (post.content.isNotEmpty)
-                        Text(
-                          _cardBody(post.content),
+                        MentionText(
+                          text: _cardBody(post.content),
                           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFEAF2FF), height: 1.5),
                         ),
                       // 话题标签：长按吸收（不触发卡片菜单），点击行为不变
