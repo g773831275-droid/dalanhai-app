@@ -459,12 +459,9 @@ class CommentSectionState extends State<CommentSection> {
     });
   }
 
-  /// @昵称 → 搜索接口精确匹配昵称 → 用户主页；非登录/找不到/接口异常给提示
+  /// @昵称 → 搜索接口精确匹配昵称 → 用户主页（游客可读，无需登录）；
+  /// 找不到/接口异常给提示
   Future<void> _openMentionProfile(String name) async {
-    if (!_isLoggedIn) {
-      _toast('请先登录后再点亮航标');
-      return;
-    }
     try {
       final list = await _api.searchUsers(name);
       CloudUserSearchItem? match;

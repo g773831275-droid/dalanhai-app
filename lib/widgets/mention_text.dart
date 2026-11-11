@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../pages/user_profile_page.dart';
 import '../services/cloud_api.dart';
-import '../services/session_store.dart';
 import '../theme/colors.dart';
 
 /// 帖子正文 @昵称 高亮渲染（v2.9.9，对齐评论区 _buildContentSpans 行为）：
@@ -52,12 +51,9 @@ class _MentionTextState extends State<MentionText> {
     super.dispose();
   }
 
-  /// 与评论区 _openMentionProfile 同口径：未登录提示、昵称精确匹配、跳主页
+  /// 点击 @昵称 → 昵称精确匹配 → 跳对方主页（游客可读，无需登录）；
+  /// 找不到/接口异常 → toast
   Future<void> _openMentionProfile(String name) async {
-    if (!SessionStore.instance.hasToken) {
-      _toast('请先登录后再点亮航标');
-      return;
-    }
     try {
       final list = await CloudApi.instance.searchUsers(name);
       final match = list.where((u) => u.nickname == name).firstOrNull;
