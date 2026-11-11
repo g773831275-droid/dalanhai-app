@@ -131,7 +131,12 @@ class _PortTabState extends State<PortTab> {
   void _onFilterChanged(String id) {
     setState(() => _filter = id);
     final loader = _cloud;
-    if (loader == null) return;
+    if (loader == null) {
+      // 云端失败已回落种子（_cloud 为 null）→ 切筛选时自动重试云端，
+      // 防止一次瞬时失败后死锁在种子数据、看起来像"回退 H5 旧版"
+      _retryCloud();
+      return;
+    }
     loader
         .refresh(islandKey: kCloudIslandKeys[id] ?? 'all', sort: _sort)
         .catchError((_) {});
@@ -142,7 +147,10 @@ class _PortTabState extends State<PortTab> {
     if (_sort == sort) return;
     setState(() => _sort = sort);
     final loader = _cloud;
-    if (loader == null) return;
+    if (loader == null) {
+      _retryCloud(); // 同 _onFilterChanged：失败态下切排序也自动重试云端
+      return;
+    }
     loader
         .refresh(islandKey: kCloudIslandKeys[_filter] ?? 'all', sort: _sort)
         .catchError((_) {});
