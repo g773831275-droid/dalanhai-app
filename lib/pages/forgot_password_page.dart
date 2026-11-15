@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
+import '../services/cloud_api.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../data/auth_service.dart';
 
-/// 找回密码页 — 验证码重置密码
-/// 对接后端（联调后启用，见 TODO 标注）：
-///   POST /api/sms/send   { phone, purpose: "reset" }
-///   POST /api/email/send { email, purpose: "reset" }
-///   POST /api/password/reset { type: "sms|email", target, code, newPassword }
-/// 当前验证码走本地 AuthService 演示，联调时替换为真实 API（api_client 接入）
+/// 找回密码页 — 验证码重置密码（v2.9.9 联调真实接口）
+///   POST /api/sms/code   { phone, purpose: "reset" }（账号不存在报错，不建号）
+///   POST /api/email/code { email(归一化后), purpose: "reset" }（后端豁免人机验证，风控+限流兜底）
+///   POST /api/password/reset { account, code, newPassword }
+/// 与【账号设置-密码设置】是两套独立流程：本页不需要原密码，靠验证码核验身份；
+/// 重置成功后不自动登录，toast 引导返回登录页用新密码登录。
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
 
@@ -17,10 +18,9 @@ class ForgotPasswordPage extends StatefulWidget {
 }
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
-  final _auth = AuthService();
   String _mode = 'phone'; // phone / email（验证方式二选一）
   int _countdown = 0;
-  String? _lastCode; // 开发模式：显示验证码
+  bool _busy = false; // 发码/重置请求进行中（防重复提交）
 
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -38,24 +38,37 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  /// 当前输入的账号（手机号或邮箱）
-  String get _target => _mode == 'phone' ? _phoneCtrl.text.trim() : _emailCtrl.text.trim();
+  /// 当前输入的账号（手机号或邮箱；邮箱走全角归一化，校验与请求共用同一值）
+  String get _target => _mode == 'phone'
+      ? _phoneCtrl.text.trim()
+      : AuthService.normalizeEmail(_emailCtrl.text.trim());
 
-  void _sendCode() {
+  Future<void> _sendCode() async {
     if (_mode == 'phone') {
       if (!AuthService.isValidPhone(_target)) return _toast('请输入正确的手机号');
     } else {
       if (!AuthService.isValidEmail(_target)) return _toast('请输入正确的邮箱');
     }
-    // TODO(联调): POST /api/{sms|email}/send { target, purpose: "reset" }，取 data.devCode 展示
-    final err = _auth.sendCode(_target);
-    if (err != null) return _toast(err);
-    setState(() {
-      _lastCode = _auth.lastSentCode;
-      _countdown = 60;
-    });
-    _toast('验证码已发送（开发模式：$_lastCode）');
-    _tick();
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      // purpose=reset：账号不存在后端直接报错（不自动建号）
+      if (_mode == 'phone') {
+        await CloudApi.instance.sendSmsCode(_target, purpose: 'reset');
+      } else {
+        await CloudApi.instance.sendEmailCode(_target, '', '', purpose: 'reset');
+      }
+      if (!mounted) return;
+      setState(() => _countdown = 60);
+      _toast(_mode == 'phone' ? '验证码已发送，请查收短信' : '验证码已发送，请查收邮件');
+      _tick();
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+    } catch (_) {
+      if (mounted) _toast('发送失败，请检查网络后重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _tick() {
@@ -66,29 +79,35 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     // 1. 账号格式
     if (_mode == 'phone') {
       if (!AuthService.isValidPhone(_target)) return _toast('请输入正确的手机号');
     } else {
       if (!AuthService.isValidEmail(_target)) return _toast('请输入正确的邮箱');
     }
-    // 2. 验证码
+    // 2. 验证码（格式前置；正确性由后端 purpose=reset 核验）
     final code = _codeCtrl.text.trim();
     if (code.length != 6) return _toast('请输入 6 位验证码');
-    final err = _auth.verifyCode(_target, code);
-    if (err != null) return _toast(err);
-    // 3. 新密码
+    // 3. 新密码（≥6 位 + 两次一致，前置校验不发请求）
     final p1 = _passCtrl.text;
     final p2 = _pass2Ctrl.text;
     if (p1.length < 6) return _toast('新密码至少 6 位');
     if (p1 != p2) return _toast('两次输入的密码不一致');
-
-    // TODO(联调): POST /api/password/reset
-    //   { "type": _mode == 'phone' ? 'sms' : 'email', "target": _target, "code": code, "newPassword": p1 }
-    //   成功 code:0 → toast + 返回登录页
-    _toast('密码已重置（演示）· 请用新密码登录');
-    Navigator.of(context).pop();
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await CloudApi.instance.resetPassword(account: _target, code: code, newPassword: p1);
+      if (!mounted) return;
+      _toast('密码重置成功，请返回登录页使用新密码登录');
+      Navigator.of(context).pop(); // 重置成功 → 返回登录页（不自动登录）
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message); // 验证码错误/账号不存在/格式错误等友好提示
+    } catch (_) {
+      if (mounted) _toast('重置失败，请检查网络后重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _toast(String msg) {

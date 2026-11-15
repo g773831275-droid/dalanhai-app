@@ -500,10 +500,12 @@ class CloudApi {
   // 401 由 UI 层统一执行登出（清本地状态 → 船长闸门重新生效）
   // ════════════════════════════════════════════════════════
 
-  /// 发送短信验证码（POST /api/sms/code，登录用）。
-  /// 60s/次 冷却（429）；手机号不存在 → 后端自动注册（自助注册）。
-  Future<void> sendSmsCode(String phone) async {
-    await _request('POST', '/api/sms/code', body: <String, dynamic>{'phone': phone});
+  /// 发送短信验证码（POST /api/sms/code）。
+  /// 60s/次 冷却（429）；[purpose] 默认 login（手机号不存在自动注册）；
+  /// reset=找回密码重置（账号不存在直接报错，不建号）。验证码 5 分钟有效。
+  Future<void> sendSmsCode(String phone, {String purpose = 'login'}) async {
+    await _request('POST', '/api/sms/code',
+        body: <String, dynamic>{'phone': phone, 'purpose': purpose});
   }
 
   /// 短信验证码登录（POST /api/login/sms）。
@@ -673,11 +675,14 @@ class CloudApi {
   /// 发送邮箱验证码（POST /api/email/code）。
   /// 强制人机验证（captchaId+Answer 必填）+ 临时邮箱拦截 + 单邮箱 3 条/h、单 IP 10 条/h。
   /// 邮箱不存在 → 后端自动创建账号（凭证隔离，不与手机号账号合并）。
-  Future<void> sendEmailCode(String email, String captchaId, String captchaAnswer) async {
+  /// [purpose] 默认 login；reset=找回密码（后端豁免 captcha，账号不存在报错不建号）。
+  Future<void> sendEmailCode(String email, String captchaId, String captchaAnswer,
+      {String purpose = 'login'}) async {
     await _request('POST', '/api/email/code', body: <String, dynamic>{
       'email': email,
       'captchaId': captchaId,
       'captchaAnswer': captchaAnswer,
+      'purpose': purpose,
     });
   }
 
@@ -711,5 +716,20 @@ class CloudApi {
   Future<void> setPassword(String password) async {
     await _request('PATCH', '/api/user/set-password',
         body: <String, dynamic>{'password': password});
+  }
+
+  /// 找回密码-验证码重置（POST /api/password/reset，v2.9.9 忘记密码流程）。
+  /// [account] 仅支持手机号/邮箱（账号ID 不允许）；验证码 purpose=reset 核验身份，
+  /// 不需要原密码；成功后不自动登录（前端引导回登录页）。
+  Future<void> resetPassword({
+    required String account,
+    required String code,
+    required String newPassword,
+  }) async {
+    await _request('POST', '/api/password/reset', body: <String, dynamic>{
+      'account': account,
+      'code': code,
+      'newPassword': newPassword,
+    });
   }
 }
