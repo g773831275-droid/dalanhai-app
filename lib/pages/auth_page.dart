@@ -214,7 +214,7 @@ class _AuthPageState extends State<AuthPage> {
     }
 
     // ── 密码模式：本轮后置，暂保留本地开发模式（TODO 联调 POST /api/login）──
-    if (!_checkEula()) return;
+    // v2.9.9：密码登录不走 EULA 勾选闸门（复选框仅短信/邮箱模式渲染，见 build 内 if (_mode != 'password')）
     final n = _acctCtrl.text.trim();
     final p = _passCtrl.text;
     if (n.isEmpty || p.length < 6) return _toast('账号不能为空，密码至少 6 位');
@@ -452,7 +452,7 @@ class _AuthPageState extends State<AuthPage> {
       _Field(label: '账号 · ACCOUNT', child: TextField(
         controller: _acctCtrl,
         style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '手机/邮箱/大蓝海账号'),
+        decoration: const InputDecoration(hintText: '手机/邮箱/账号ID'),
       )),
       const SizedBox(height: 16),
       _Field(label: '密码 · PASSWORD', child: TextField(
