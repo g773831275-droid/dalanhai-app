@@ -126,11 +126,16 @@ class _CaptainTabState extends State<CaptainTab> {
     super.dispose();
   }
 
-  /// DataStore 变化（打卡同步 / 登录 / 登出）→ 去抖重拉云端统计。
+  /// DataStore 变化（打卡同步 / 登录 / 登出）→ 去抖重拉云端统计 + 日志列表。
   /// 去抖防连击：打卡弹窗期间多次 notify 只发一次请求；刷新期间旧值继续展示不闪 0。
+  /// 2026-11-15 修复：登录新账号后「我的日志」停留在未登录时的空列表——
+  /// 原先登录/登出只重拉统计 _loadProfile，日志列表要等手动下拉才恢复。
   void _onStoreChanged() {
     _profileDebounce?.cancel();
-    _profileDebounce = Timer(CaptainTab.refreshDebounce, _loadProfile);
+    _profileDebounce = Timer(CaptainTab.refreshDebounce, () {
+      _loadProfile();
+      _loadPosts();
+    });
   }
 
   void _onScroll() {
