@@ -181,6 +181,48 @@ class CommentSectionState extends State<CommentSection> {
     });
   }
 
+  // ── v2.9.9 消息中心：定位到指定评论（子评论先展开其根线程）──
+  int? _highlightCommentId; // 定位高亮（金色边框，2s 后消退）
+
+  GlobalKey? _locateContext(int commentId) {
+    if (_keyOf(commentId).currentContext != null) return _keyOf(commentId);
+    // 子评论：找到所属根评论线程 → 展开 → 定位根块（子评论在根块内可见）
+    for (final e in _threads.entries) {
+      if (e.value.list.any((x) => x.commentId == commentId)) {
+        if (!e.value.expanded) _expandReplies(e.key);
+        return _keyOf(e.key);
+      }
+    }
+    return null;
+  }
+
+  /// 外部（消息中心）定位：目标可能不在首页 → 逐页 loadMore 直到找到或到底
+  Future<void> scrollToComment(int commentId) async {
+    // 等首屏评论加载完成（loadFirst 期间 loadMore 会被 _loading guard 拒绝）
+    for (int i = 0; i < 50 && _loading; i++) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+    for (int i = 0; i < 10 && !_reachedEnd; i++) {
+      if (_locateContext(commentId) != null) break;
+      await loadMore();
+      while (_loadingMore) {
+        await Future.delayed(const Duration(milliseconds: 80));
+      }
+    }
+    final key = _locateContext(commentId);
+    if (key == null || !mounted) return;
+    setState(() => _highlightCommentId = commentId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), alignment: 0.1);
+      }
+    });
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _highlightCommentId = null);
+    });
+  }
+
   // ── 子评论展开/收起 ──────────────────────────────────────
 
   _ReplyThread _threadOf(int rootId) {
@@ -612,9 +654,19 @@ class CommentSectionState extends State<CommentSection> {
   /// 一级评论（含子评论预览/展开）
   Widget _buildComment(CloudComment c) {
     final t = _threads[c.commentId];
+    final highlighted = _highlightCommentId != null &&
+        (c.commentId == _highlightCommentId ||
+            (_threads[c.commentId]?.list.any((x) => x.commentId == _highlightCommentId) ?? false));
     return Container(
       key: _keyOf(c.commentId),
       margin: const EdgeInsets.only(bottom: 14),
+      decoration: highlighted
+          ? BoxDecoration(
+              border: Border.all(color: AppColors.gold, width: 1),
+              borderRadius: BorderRadius.circular(10),
+            )
+          : null,
+      padding: highlighted ? const EdgeInsets.all(6) : null,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,

@@ -32,13 +32,16 @@ import 'user_profile_page.dart';
 ///   - 作者/评论头像点击 → 对应他人主页（自己的头像 → 自身公开访客预览）
 /// 异常口径与后端一致：401 引导登录 / 403 权限或风控 / 404 统一"帖子不存在"。
 class CloudPostDetailPage extends StatefulWidget {
-  const CloudPostDetailPage({super.key, required this.post, this.loader});
+  const CloudPostDetailPage({super.key, required this.post, this.loader, this.initialCommentId});
 
   /// 列表带入的帖子（先渲染再拉详情，秒开）
   final CloudPost post;
 
   /// 来源瀑布流 loader（点赞/评论数同步回列表；可空）
   final CloudFeedLoader? loader;
+
+  /// v2.9.9 消息中心：进入后自动滚动定位到该评论（null = 不定位）
+  final int? initialCommentId;
 
   @override
   State<CloudPostDetailPage> createState() => _CloudPostDetailPageState();
@@ -77,6 +80,13 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
     _reload();
     _resolveSelf();
     _scrollCtrl.addListener(_onScroll);
+    // v2.9.9 消息中心：进入详情后自动定位到指定评论（首屏评论加载后执行）
+    if (widget.initialCommentId != null) {
+      Future.delayed(const Duration(milliseconds: 900), () {
+        if (!mounted) return;
+        _sectionKey.currentState?.scrollToComment(widget.initialCommentId!);
+      });
+    }
     // 回复预置 @前缀的「整体删除」：用户区文本为空时按退格 → 清除置灰前缀
     _commentFocus.onKeyEvent = (node, event) {
       if (event is KeyDownEvent &&

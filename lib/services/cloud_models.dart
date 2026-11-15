@@ -700,3 +700,124 @@ String? cloudCertIslandToLocal(String? key) {
   }
   return null;
 }
+
+// ════════════════════════════════════════════════════════════
+// v2.9.9 消息中心（4 类互动通知 + 私信）
+// ════════════════════════════════════════════════════════════
+
+/// 消息分类未读数（GET /api/user/notifications/unread）
+class CloudUnreadCounts {
+  const CloudUnreadCounts({
+    this.likePost = 0,
+    this.likeComment = 0,
+    this.reply = 0,
+    this.mention = 0,
+  });
+
+  factory CloudUnreadCounts.fromJson(Map<String, dynamic> j) => CloudUnreadCounts(
+        likePost: (j['like_post'] as num?)?.toInt() ?? 0,
+        likeComment: (j['like_comment'] as num?)?.toInt() ?? 0,
+        reply: (j['reply'] as num?)?.toInt() ?? 0,
+        mention: (j['mention'] as num?)?.toInt() ?? 0,
+      );
+
+  final int likePost;
+  final int likeComment;
+  final int reply;
+  final int mention;
+
+  int get dm => 0; // 私信未读在会话列表接口聚合，入口栏单独取
+}
+
+/// 互动通知平铺条目（GET /api/user/notifications）
+class CloudNotification {
+  const CloudNotification({
+    required this.id,
+    required this.type,
+    required this.actorId,
+    this.actorNickname,
+    this.actorAvatar,
+    this.postId,
+    this.commentId,
+    this.postExcerpt,
+    required this.read,
+    required this.createdAt,
+  });
+
+  factory CloudNotification.fromJson(Map<String, dynamic> j) => CloudNotification(
+        id: (j['id'] as num).toInt(),
+        type: (j['type'] as String?) ?? '',
+        actorId: (j['actorId'] as num?)?.toInt() ?? 0,
+        actorNickname: j['actorNickname'] as String?,
+        actorAvatar: j['actorAvatar'] as String?,
+        postId: (j['postId'] as num?)?.toInt(),
+        commentId: (j['commentId'] as num?)?.toInt(),
+        postExcerpt: j['postExcerpt'] as String?,
+        read: (j['read'] as bool?) ?? false,
+        createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
+      );
+
+  final int id;
+  final String type; // like_post / like_comment / reply / mention
+  final int actorId;
+  final String? actorNickname;
+  final String? actorAvatar;
+  final int? postId;
+  final int? commentId;
+  final String? postExcerpt;
+  final bool read;
+  final int createdAt;
+}
+
+/// 私信会话条目（GET /api/user/dm/conversations）
+class CloudConversation {
+  const CloudConversation({
+    required this.peerId,
+    this.peerNickname,
+    this.peerAvatar,
+    required this.lastContent,
+    required this.lastAt,
+    required this.unread,
+  });
+
+  factory CloudConversation.fromJson(Map<String, dynamic> j) => CloudConversation(
+        peerId: (j['peerId'] as num).toInt(),
+        peerNickname: j['peerNickname'] as String?,
+        peerAvatar: j['peerAvatar'] as String?,
+        lastContent: (j['lastContent'] as String?) ?? '',
+        lastAt: (j['lastAt'] as num?)?.toInt() ?? 0,
+        unread: (j['unread'] as num?)?.toInt() ?? 0,
+      );
+
+  final int peerId;
+  final String? peerNickname;
+  final String? peerAvatar;
+  final String lastContent;
+  final int lastAt;
+  final int unread;
+}
+
+/// 私信消息（GET /api/user/dm/:peerUid/messages）
+class CloudDmMessage {
+  const CloudDmMessage({
+    required this.id,
+    required this.senderId,
+    required this.content,
+    required this.createdAt,
+    required this.mine,
+  });
+
+  factory CloudDmMessage.fromJson(Map<String, dynamic> j) => CloudDmMessage(
+        id: (j['id'] as num).toInt(),
+        senderId: (j['senderId'] as num?)?.toInt() ?? 0,
+        content: (j['content'] as String?) ?? '',
+        createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
+        mine: (j['mine'] as bool?) ?? false,
+      );
+
+  final int id;
+  final int senderId;
+  final String content;
+  final int createdAt;
+  final bool mine;
+}

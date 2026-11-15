@@ -741,4 +741,54 @@ class CloudApi {
       'newPassword': newPassword,
     });
   }
+
+  // ── v2.9.9 消息中心（4 类互动通知 + 私信）─────────────────
+
+  /// 4 类消息未读数（GET /api/user/notifications/unread）
+  Future<CloudUnreadCounts> fetchUnreadCounts() async {
+    final data = await _request('GET', '/api/user/notifications/unread') as Map<String, dynamic>;
+    return CloudUnreadCounts.fromJson(data);
+  }
+
+  /// 分类通知平铺列表（GET /api/user/notifications?type=...）
+  /// like 类聚合展示由调用方按 postId/commentId 分组
+  Future<List<CloudNotification>> fetchNotifications(
+      {required String type, int page = 1, int size = 20}) async {
+    final data = await _request('GET', '/api/user/notifications',
+        query: {'type': type, 'page': '$page', 'size': '$size'}) as Map<String, dynamic>;
+    final list = (data['list'] as List<dynamic>?) ?? const [];
+    return list.map((j) => CloudNotification.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  /// 批量标记通知已读（POST /api/user/notifications/read）
+  Future<void> markNotificationsRead(List<int> ids) async {
+    await _request('POST', '/api/user/notifications/read',
+        body: <String, dynamic>{'ids': ids});
+  }
+
+  /// 分类全部已读（POST /api/user/notifications/read-all）
+  Future<void> markAllNotificationsRead(String type) async {
+    await _request('POST', '/api/user/notifications/read-all',
+        body: <String, dynamic>{'type': type});
+  }
+
+  /// 私信会话列表（GET /api/user/dm/conversations）
+  Future<List<CloudConversation>> fetchConversations() async {
+    final data = await _request('GET', '/api/user/dm/conversations') as Map<String, dynamic>;
+    final list = (data['list'] as List<dynamic>?) ?? const [];
+    return list.map((j) => CloudConversation.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  /// 会话消息（GET /api/user/dm/:peerUid/messages；打开即置对方消息已读）
+  Future<List<CloudDmMessage>> fetchDmMessages(int peerUid) async {
+    final data = await _request('GET', '/api/user/dm/$peerUid/messages') as Map<String, dynamic>;
+    final list = (data['list'] as List<dynamic>?) ?? const [];
+    return list.map((j) => CloudDmMessage.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  /// 发送私信（POST /api/user/dm）
+  Future<void> sendDm({required int toUid, required String content}) async {
+    await _request('POST', '/api/user/dm',
+        body: <String, dynamic>{'toUid': toUid, 'content': content});
+  }
 }
