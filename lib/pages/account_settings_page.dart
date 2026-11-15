@@ -12,6 +12,7 @@ import 'blacklist_page.dart';
 /// 账号设置页（v2.9.6 入口收拢版；入口：船长 Tab 资料卡片【账号设置】按钮）。
 ///
 /// 分组结构（条目样式沿用船员服务菜单原生 UI，右侧 › 箭头）：
+/// 【账号ID】当前登录 uid 静态展示（v2.9.9，只读无点击）
 /// 【船员服务】联系船务长 · 打卡提醒
 /// 【黑名单】黑名单管理（独立路由页）
 /// 【其他】隐私政策 · 下船登出（确认弹窗沿用旧版样式/文案/逻辑，不改）
@@ -36,6 +37,9 @@ class AccountSettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 40),
         children: [
+          // ── 账号ID（静态展示，无点击）──
+          _accountIdItem(),
+          const SizedBox(height: 20),
           // ── 船员服务 ──
           _sectionLabel('船员服务 · SERVICES'),
           _settingsItem(
@@ -76,6 +80,43 @@ class AccountSettingsPage extends StatelessWidget {
       ),
     );
   }
+
+  /// 账号ID展示条目（v2.9.9）：容器样式与 _settingsItem 同款（圆角14/渐变/细边框），
+  /// 仅静态展示当前登录 uid（MeState 缓存，登出已 clear），无 onTap、无 › 箭头。
+  Widget _accountIdItem() => Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x1A7DC4FF)),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              const SizedBox(width: 28, child: Text('🆔', style: TextStyle(fontSize: 20))),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('账号ID',
+                    style: TextStyle(fontSize: 14, color: Color(0xFFE5EFFA))),
+              ),
+              FutureBuilder<int>(
+                future: MeState.instance.uid(),
+                builder: (context, snap) => Text(
+                  snap.hasData ? '${snap.data}' : '—',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   /// 分组标题（金色小字，与船员服务区块标题同款）
   Widget _sectionLabel(String text) => Padding(
