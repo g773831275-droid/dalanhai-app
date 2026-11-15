@@ -821,3 +821,103 @@ class CloudDmMessage {
   final int createdAt;
   final bool mine;
 }
+
+// ════════════════════════════════════════════════════════════
+// v2.9.10 群聊（6 个固定内置群，island / tavern）
+// ════════════════════════════════════════════════════════════
+
+/// 群列表条目（GET /api/group/list）
+class CloudGroupEntry {
+  const CloudGroupEntry({
+    required this.groupId,
+    required this.groupName,
+    required this.groupType,
+    required this.tags,
+    required this.avatar,
+    required this.memberCount,
+    required this.lastContent,
+    this.lastAt,
+    required this.unread,
+  });
+
+  factory CloudGroupEntry.fromJson(Map<String, dynamic> j) => CloudGroupEntry(
+        groupId: (j['groupId'] as String?) ?? '',
+        groupName: (j['groupName'] as String?) ?? '',
+        groupType: (j['groupType'] as String?) ?? 'island',
+        tags: (j['tags'] as String?) ?? '',
+        avatar: (j['avatar'] as String?) ?? '',
+        memberCount: (j['memberCount'] as num?)?.toInt() ?? 0,
+        lastContent: (j['lastContent'] as String?) ?? '',
+        lastAt: (j['lastAt'] as num?)?.toInt(),
+        unread: (j['unread'] as num?)?.toInt() ?? 0,
+      );
+
+  final String groupId;
+  final String groupName;
+  final String groupType; // island / tavern
+  final String tags;
+  final String avatar; // emoji
+  final int memberCount;
+  final String lastContent;
+  final int? lastAt;
+  final int unread;
+}
+
+/// 群详情（GET /api/group/:groupId/info）
+class CloudGroupInfo {
+  const CloudGroupInfo({
+    required this.groupId,
+    required this.groupName,
+    required this.groupType,
+    required this.tags,
+    required this.avatar,
+    required this.memberCount,
+  });
+
+  factory CloudGroupInfo.fromJson(Map<String, dynamic> j) => CloudGroupInfo(
+        groupId: (j['groupId'] as String?) ?? '',
+        groupName: (j['groupName'] as String?) ?? '',
+        groupType: (j['groupType'] as String?) ?? 'island',
+        tags: (j['tags'] as String?) ?? '',
+        avatar: (j['avatar'] as String?) ?? '',
+        memberCount: (j['memberCount'] as num?)?.toInt() ?? 0,
+      );
+
+  final String groupId;
+  final String groupName;
+  final String groupType;
+  final String tags;
+  final String avatar;
+  final int memberCount;
+}
+
+/// 群消息（GET /api/group/:groupId/msg、POST 回执）
+class CloudGroupMessage {
+  const CloudGroupMessage({
+    required this.msgId,
+    required this.groupId,
+    required this.senderUid,
+    required this.senderName,
+    this.senderAvatar,
+    required this.content,
+    required this.createdAt,
+  });
+
+  factory CloudGroupMessage.fromJson(Map<String, dynamic> j) => CloudGroupMessage(
+        msgId: (j['msgId'] as num).toInt(),
+        groupId: (j['groupId'] as String?) ?? '',
+        senderUid: (j['senderUid'] as num?)?.toInt() ?? 0,
+        senderName: (j['senderName'] as String?) ?? '船员',
+        senderAvatar: j['senderAvatar'] as String?,
+        content: (j['content'] as String?) ?? '',
+        createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
+      );
+
+  final int msgId;
+  final String groupId;
+  final int senderUid;
+  final String senderName;
+  final String? senderAvatar;
+  final String content;
+  final int createdAt;
+}

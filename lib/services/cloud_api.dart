@@ -791,4 +791,44 @@ class CloudApi {
     await _request('POST', '/api/user/dm',
         body: <String, dynamic>{'toUid': toUid, 'content': content});
   }
+
+  // ── v2.9.10 群聊（6 个固定内置群）─────────────────────────
+
+  /// 群列表（GET /api/group/list）：基础信息+最新消息+当前用户未读数
+  Future<List<CloudGroupEntry>> fetchGroups() async {
+    final data = await _request('GET', '/api/group/list') as Map<String, dynamic>;
+    final list = (data['list'] as List<dynamic>?) ?? const [];
+    return list.map((j) => CloudGroupEntry.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  /// 群详情（GET /api/group/:groupId/info）
+  Future<CloudGroupInfo> fetchGroupInfo(String groupId) async {
+    final data = await _request('GET', '/api/group/$groupId/info') as Map<String, dynamic>;
+    return CloudGroupInfo.fromJson(data);
+  }
+
+  /// 群历史消息分页（GET /api/group/:groupId/msg）
+  /// 进群不带 lastMsgId → 最新 [limit] 条；上拉历史带 lastMsgId → 更早 limit 条
+  Future<List<CloudGroupMessage>> fetchGroupMessages(String groupId,
+      {int? lastMsgId, int limit = 20}) async {
+    final query = <String, String>{'limit': '$limit'};
+    if (lastMsgId != null) query['last_msg_id'] = '$lastMsgId';
+    final data =
+        await _request('GET', '/api/group/$groupId/msg', query: query) as Map<String, dynamic>;
+    final list = (data['list'] as List<dynamic>?) ?? const [];
+    return list.map((j) => CloudGroupMessage.fromJson(j as Map<String, dynamic>)).toList();
+  }
+
+  /// 发群文本消息（POST /api/group/:groupId/msg，风控审核）→ 返回完整消息回执
+  Future<CloudGroupMessage> sendGroupMessage(String groupId, String content) async {
+    final data = await _request('POST', '/api/group/$groupId/msg',
+        body: <String, dynamic>{'content': content}) as Map<String, dynamic>;
+    return CloudGroupMessage.fromJson(data);
+  }
+
+  /// 标记群已读（POST /api/group/:groupId/read，进群/收到新消息时调用）
+  Future<void> markGroupRead(String groupId, int lastReadMsgId) async {
+    await _request('POST', '/api/group/$groupId/read',
+        body: <String, dynamic>{'lastReadMsgId': lastReadMsgId});
+  }
 }

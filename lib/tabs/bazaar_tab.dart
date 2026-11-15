@@ -6,6 +6,7 @@ import '../services/cloud_models.dart';
 import '../services/session_store.dart';
 import '../theme/colors.dart';
 import '../data/seed_data.dart';
+import '../pages/auth_page.dart';
 import '../pages/dm_conversations_page.dart';
 import '../pages/group_page.dart';
 import '../pages/notification_list_page.dart';
@@ -25,6 +26,7 @@ class _BazaarTabState extends State<BazaarTab> {
   DataStore? _boundStore;
   CloudUnreadCounts _unread = const CloudUnreadCounts();
   int _dmUnread = 0;
+  List<CloudGroupEntry>? _cloudGroups; // 登录态云端群列表（含未读/最新消息）；null=未登录降级 seed
 
   @override
   void initState() {
@@ -56,7 +58,10 @@ class _BazaarTabState extends State<BazaarTab> {
   }
 
   Future<void> _refreshUnread() async {
-    if (!SessionStore.instance.hasToken) return; // 未登录不发请求
+    if (!SessionStore.instance.hasToken) {
+      if (mounted) setState(() => _cloudGroups = null);
+      return; // 未登录不发请求（群列表降级 seed 渲染）
+    }
     try {
       final counts = await _api.fetchUnreadCounts();
       int dm = 0;
@@ -66,9 +71,16 @@ class _BazaarTabState extends State<BazaarTab> {
       } on ApiException {
         // 私信未读失败不影响 4 类角标
       }
+      List<CloudGroupEntry>? groups;
+      try {
+        groups = await _api.fetchGroups(); // 群列表数据源（未读角标/最新消息）
+      } on ApiException {
+        // 群列表拉取失败降级 seed 渲染
+      }
       if (!mounted) return;
       setState(() => _unread = counts);
       setState(() => _dmUnread = dm);
+      if (mounted) setState(() => _cloudGroups = groups);
     } on ApiException {
       // 未读拉取失败静默（下次 store 通知再试）
     }
@@ -76,9 +88,20 @@ class _BazaarTabState extends State<BazaarTab> {
 
   @override
   Widget build(BuildContext context) {
-    final islandGroups = groups.where((g) => g.cat == 'island').toList();
-    final clubGroups = groups.where((g) => g.cat == 'club').toList();
     final store = DataStoreProvider.of(context);
+
+    // v2.9.10 群列表数据源：登录 → 云端（未读角标/最新消息）；未登录 → seed 降级（UI 布局不变）
+    final List<CloudGroupEntry>? cloud = store.isLoggedIn ? _cloudGroups : null;
+    final List<CloudGroupEntry> islandCloud =
+        cloud?.where((g) => g.groupType == 'island').toList() ?? const [];
+    final List<CloudGroupEntry> tavernCloud =
+        cloud?.where((g) => g.groupType == 'tavern').toList() ?? const [];
+    final islandGroups = islandCloud.isNotEmpty
+        ? null
+        : groups.where((g) => g.cat == 'island').toList();
+    final tavernGroups = tavernCloud.isNotEmpty
+        ? null
+        : groups.where((g) => g.cat == 'club').toList();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 0, 14, 100),
@@ -90,15 +113,35 @@ class _BazaarTabState extends State<BazaarTab> {
             _buildMsgCenter(),
             const SizedBox(height: 6),
           ],
+          // ── v2.9.10 岛屿社群（云端群聊数据源）──
           const _SectionTitle('岛屿社群 · Island Crews'),
-          ...islandGroups.map((g) => _GroupItem(group: g, onTap: () => _openGroup(context, g))),
+          if (islandGroups != null)
+            ...islandGroups.map((g) => _GroupItem(
+                  group: g,
+                  onTap: () => _openGroupEntry(context, seed: g),
+                ))
+          else
+            ...islandCloud.map((g) => _CloudGroupItem(
+                  group: g,
+                  onTap: () => _openGroupEntry(context, cloud: g),
+                )),
+          // ── 同好酒馆 ──
           const _SectionTitle('同好酒馆 · Taverns'),
-          ...clubGroups.map((g) => _GroupItem(group: g, onTap: () => _openGroup(context, g))),
+          if (tavernGroups != null)
+            ...tavernGroups.map((g) => _GroupItem(
+                  group: g,
+                  onTap: () => _openGroupEntry(context, seed: g),
+                ))
+          else
+            ...tavernCloud.map((g) => _CloudGroupItem(
+                  group: g,
+                  onTap: () => _openGroupEntry(context, cloud: g),
+                )),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text(
-                '点击群名进入社群 · 与船员们交流',
+                '点击群名进入群聊 · 与船员们交流',
                 style: TextStyle(
                   fontSize: 11,
                   color: AppColors.sub,
@@ -110,6 +153,63 @@ class _BazaarTabState extends State<BazaarTab> {
         ],
       ),
     );
+  }
+
+  /// 进群入口：登录直接进群聊（免邀请/申请/审核）；未登录唤起登录引导
+  Future<void> _openGroupEntry(BuildContext context, {CloudGroupEntry? cloud, Group? seed}) async {
+    final store = DataStoreProvider.of(context);
+    if (!store.isLoggedIn) {
+      final BuildContext navCtx = Navigator.of(context).context;
+      final go = await showDialog<bool>(
+        context: navCtx,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.cardSolid,
+          title: const Text(
+            '需要登船',
+            style: TextStyle(color: AppColors.gold, fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            '登录后即可进入群聊，与船员们交流',
+            style: TextStyle(color: AppColors.sub, fontSize: 13, height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(navCtx, false),
+              child: const Text('取消', style: TextStyle(color: AppColors.sub)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(navCtx, true),
+              child: const Text('去登录', style: TextStyle(color: AppColors.gold)),
+            ),
+          ],
+        ),
+      );
+      if (go == true && navCtx.mounted) {
+        await Navigator.of(navCtx).push(
+          MaterialPageRoute(builder: (_) => const AuthPage()),
+        );
+        _refreshUnread();
+      }
+      return;
+    }
+    final groupId = cloud?.groupId ?? _seedToCloudId(seed!.id);
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => GroupPage(groupId: groupId)),
+    );
+    _refreshUnread(); // 群聊返回 → 刷新未读角标/最新消息
+  }
+
+  /// seed 群 id（g-qingxin 等）→ 云端固定群 id（g001-g006）
+  String _seedToCloudId(String seedId) {
+    const map = {
+      'g-qingxin': 'g001',
+      'g-jieyan': 'g002',
+      'g-jianshen': 'g003',
+      'g-zaoshui': 'g004',
+      'g-emotion': 'g005',
+      'g-ai': 'g006',
+    };
+    return map[seedId] ?? seedId;
   }
 
   // ── v2.9.9 消息中心横向快捷入口栏（5 个大圆角方形卡片，一行均分）──
@@ -255,10 +355,6 @@ class _BazaarTabState extends State<BazaarTab> {
   Widget get _dmIcon => _iconWrap(
         const Icon(Icons.send_outlined, size: 22, color: Color(0xFFE5EFFA)),
       );
-
-  void _openGroup(BuildContext context, Group g) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => GroupPage(groupId: g.id)));
-  }
 }
 
 /// H5 .section-title — flex 居中，两侧渐变线，金色 Cinzel 字体
@@ -411,6 +507,135 @@ class _GroupItem extends StatelessWidget {
                     alignment: Alignment.center,
                     child: Text(
                       group.badge > 99 ? '99+' : '${group.badge}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// v2.9.10 云端群条目（布局与 _GroupItem 一致；数据=接口：最新消息摘要+相对时间+
+/// 未读数字角标在时间右侧；memberCount 由接口动态统计）
+class _CloudGroupItem extends StatelessWidget {
+  final CloudGroupEntry group;
+  final VoidCallback onTap;
+  const _CloudGroupItem({required this.group, required this.onTap});
+
+  String _timeLabel(int? ms) {
+    if (ms == null) return '';
+    final t = DateTime.fromMillisecondsSinceEpoch(ms);
+    final diff = DateTime.now().difference(t);
+    if (diff.inMinutes < 1) return '刚刚';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+    if (diff.inHours < 24) return '${diff.inHours} 小时前';
+    if (diff.inDays < 30) return '${diff.inDays} 天前';
+    return '${t.month}-${t.day}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: AppColors.card,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: Row(
+              children: [
+                // .grp-avatar 46×46 圆角12 渐变 135deg ocean→#0F6E56
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF123A6B), Color(0xFF0F6E56)],
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(group.avatar, style: const TextStyle(fontSize: 22)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              group.groupName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFFEAF2FF),
+                              ),
+                            ),
+                          ),
+                          // 时间（右侧接未读角标，截图样式）
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              _timeLabel(group.lastAt),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.sub,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        group.lastContent.isEmpty
+                            ? '${group.memberCount} 名船员 · 等待第一条消息'
+                            : group.lastContent,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.sub,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // 未读数字角标（时间右侧）
+                if (group.unread > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 20),
+                    height: 20,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.coral,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      group.unread > 99 ? '99+' : '${group.unread}',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,
