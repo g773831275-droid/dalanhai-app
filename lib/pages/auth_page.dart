@@ -213,15 +213,32 @@ class _AuthPageState extends State<AuthPage> {
       return;
     }
 
-    // ── 密码模式：本轮后置，暂保留本地开发模式（TODO 联调 POST /api/login）──
-    // v2.9.9：密码登录不走 EULA 勾选闸门（复选框仅短信/邮箱模式渲染，见 build 内 if (_mode != 'password')）
+    // ── 密码登录：POST /api/login（v2.9.9 联调真实接口，替代原本地 flag 模拟）──
+    // account 支持 手机号/邮箱/账号ID；密码登录不走 EULA 勾选闸门（复选框仅短信/邮箱模式渲染）
     final n = _acctCtrl.text.trim();
     final p = _passCtrl.text;
     if (n.isEmpty || p.length < 6) return _toast('账号不能为空，密码至少 6 位');
-    store.login(n, 'password'); // 本地 flag 模拟登录态
-    appTabIndex.value = 3; // 登录成功 → 停留船长 Tab
-    Navigator.of(context).popUntil((r) => r.isFirst);
-    _toast('登船成功 · $n');
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final captain = await CloudApi.instance.loginByPassword(n, p);
+      if (!mounted) return;
+      store.login(captain.displayName, 'password');
+      if (captain.avatar.isNotEmpty) store.updateAvatar(captain.avatar);
+      if (widget.returnTo == 'island') {
+        Navigator.of(context).pop();
+      } else {
+        appTabIndex.value = 3;
+        Navigator.of(context).popUntil((r) => r.isFirst);
+      }
+      _toast('登船成功 · ${captain.displayName}');
+    } on ApiException catch (e) {
+      _toast(_friendlyError(e)); // 账号不存在，请使用短信/邮箱注册 等
+    } catch (_) {
+      _toast('登录失败，请检查网络后重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   void _toast(String msg) {

@@ -691,4 +691,25 @@ class CloudApi {
     await onAuthenticated?.call(token, '');
     return captain;
   }
+
+  /// 密码登录（POST /api/login，v2.9.9 联调）。
+  /// account 支持：手机号（11位）/ 邮箱 / 账号ID（纯数字 uid，后端按 users.id 查；
+  /// 不存在的 uid 返回「账号不存在，请使用短信/邮箱注册」）。
+  /// 成功返回 token+refreshToken（grandblue 双 token，落 SessionStore），user 为 buildProfile 档案。
+  Future<CloudCaptain> loginByPassword(String account, String password) async {
+    final data = await _request('POST', '/api/login',
+        body: <String, dynamic>{'account': account, 'password': password}) as Map<String, dynamic>;
+    final token = (data['token'] as String?) ?? '';
+    final refreshToken = (data['refreshToken'] as String?) ?? '';
+    final captain = CloudCaptain.fromJson((data['user'] as Map<String, dynamic>?) ?? const {});
+    await onAuthenticated?.call(token, refreshToken);
+    return captain;
+  }
+
+  /// 设置/修改登录密码（PATCH /api/user/set-password，JWT，v2.9.9 账号设置-密码设置）。
+  /// 后端 bcrypt 加密入库；<6 位由前端前置拦截，后端同规则兜底。
+  Future<void> setPassword(String password) async {
+    await _request('PATCH', '/api/user/set-password',
+        body: <String, dynamic>{'password': password});
+  }
 }

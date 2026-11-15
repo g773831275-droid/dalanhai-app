@@ -7,12 +7,13 @@ import '../services/session_store.dart';
 import '../services/social_state.dart';
 import '../theme/colors.dart';
 import '../widgets/service_dialog.dart';
+import 'password_settings_page.dart';
 import 'blacklist_page.dart';
 
 /// 账号设置页（v2.9.6 入口收拢版；入口：船长 Tab 资料卡片【账号设置】按钮）。
 ///
 /// 分组结构（条目样式沿用船员服务菜单原生 UI，右侧 › 箭头）：
-/// 【账号ID】当前登录 uid 静态展示（v2.9.9，只读无点击）
+/// 【我的账号】账号ID（静态展示 uid）· 密码设置（v2.9.9，跳 PasswordSettingsPage）
 /// 【船员服务】联系船务长 · 打卡提醒
 /// 【黑名单】黑名单管理（独立路由页）
 /// 【其他】隐私政策 · 下船登出（确认弹窗沿用旧版样式/文案/逻辑，不改）
@@ -37,8 +38,16 @@ class AccountSettingsPage extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 40),
         children: [
-          // ── 账号ID（静态展示，无点击）──
+          // ── 我的账号（v2.9.9：账号ID + 密码设置）──
+          _sectionLabel('我的账号 · MY ACCOUNT'),
           _accountIdItem(),
+          _settingsItem(
+            icon: '🔑',
+            text: '密码设置',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PasswordSettingsPage()),
+            ),
+          ),
           const SizedBox(height: 20),
           // ── 船员服务 ──
           _sectionLabel('船员服务 · SERVICES'),
@@ -84,6 +93,7 @@ class AccountSettingsPage extends StatelessWidget {
   /// 账号ID展示条目（v2.9.9）：容器样式与 _settingsItem 同款（圆角14/渐变/细边框），
   /// 仅静态展示当前登录 uid（MeState 缓存，登出已 clear），无 onTap、无 › 箭头。
   Widget _accountIdItem() => Container(
+        margin: const EdgeInsets.only(bottom: 8), // 与密码设置卡片间距（同 _settingsItem）
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0x1A7DC4FF)),
