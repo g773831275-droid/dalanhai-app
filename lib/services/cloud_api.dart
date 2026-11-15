@@ -168,7 +168,16 @@ class CloudApi {
       if (httpClientOverride == null) client.close();
     }
     if (res.statusCode == 401) {
-      throw const ApiException('登录已失效，请重新登录', 401);
+      // 401 统一态：优先透传后端业务 msg（密码登录的「账号或密码错误」/「账号不存在，
+      // 请使用短信/邮箱注册」/「该账号未设置密码」等），解析失败回退默认登录态文案；
+      // token 失效场景后端 msg 本就是「登录已失效，请重新登录」，行为不变
+      String msg = '登录已失效，请重新登录';
+      try {
+        final j = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final m = (j['msg'] as String?) ?? '';
+        if (m.isNotEmpty) msg = m;
+      } catch (_) {}
+      throw ApiException(msg, 401);
     }
     if (res.statusCode == 429) {
       throw const ApiException('操作过于频繁，请稍后再试', 429);
