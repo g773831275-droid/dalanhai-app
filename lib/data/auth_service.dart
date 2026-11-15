@@ -40,7 +40,15 @@ class AuthService {
   /// 手机号格式校验
   static bool isValidPhone(String phone) => RegExp(r'^1\d{10}$').hasMatch(phone);
 
-  /// 邮箱格式校验
+  /// 邮箱输入归一化（v2.9.9 修复误拦截）：中文输入法（拼音键盘）手输的
+  /// 全角＠(U+FF20)、中文句号。(U+3002)、全角句点．(U+FF0E) 转半角 @ / .，
+  /// 归一化结果同时用于格式校验与发码/登录请求（后端正则只认半角）。
+  static String normalizeEmail(String email) => email
+      .replaceAll('＠', '@')
+      .replaceAll('。', '.')
+      .replaceAll('．', '.');
+
+  /// 邮箱格式校验（半角合法邮箱；内部先做全角归一化，避免手输全角＠/。被误判非法）
   static bool isValidEmail(String email) =>
-      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+      RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(normalizeEmail(email));
 }

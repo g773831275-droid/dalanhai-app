@@ -97,7 +97,8 @@ class _AuthPageState extends State<AuthPage> {
     }
     if (_mode == 'email') {
       // 邮箱发码：强制人机验证（captchaId+Answer）+ 临时邮箱拦截 + 双限流（后端）
-      final e = _emailCtrl.text.trim();
+      // v2.9.9：先归一化全角＠/。→ 半角，校验与发请求共用同一值（后端正则只认半角）
+      final e = AuthService.normalizeEmail(_emailCtrl.text.trim());
       if (!AuthService.isValidEmail(e)) {
         _toast('请输入正确的邮箱');
         return;
@@ -185,7 +186,7 @@ class _AuthPageState extends State<AuthPage> {
 
     // ── 邮箱登录：POST /api/email/login（Flash 契约，与短信登录完全一致）──
     if (_mode == 'email') {
-      final e = _emailCtrl.text.trim();
+      final e = AuthService.normalizeEmail(_emailCtrl.text.trim()); // 全角归一化（v2.9.9）
       final c = _codeCtrl.text.trim();
       if (!AuthService.isValidEmail(e)) return _toast('请输入正确的邮箱');
       if (c.length != 6) return _toast('请输入 6 位验证码');
