@@ -72,6 +72,13 @@ dependencies:
   # in_app_purchase iOS 平台实现（iap_service 直接 import 以调用 enableStoreKit1）
   in_app_purchase_storekit: ^0.4.17
 
+# ── 插件构建配置 ─────────────────────────────────────────
+# tobias 5.3.4 iOS podspec 硬校验：pod install 时必须提供 url_scheme
+# （用于向 Xcode 工程注册支付宝回跳 URL scheme）。本 App iOS 分支不调用
+# tobias 支付，此 scheme 仅为通过校验的占位值（dalanhai，合法无副作用）。
+tobias:
+  url_scheme: dalanhai
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

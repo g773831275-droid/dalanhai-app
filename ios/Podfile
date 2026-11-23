@@ -1,0 +1,43 @@
+# CocoaPods 全局平台声明（2026-11-23 显式指定，消除 pod install 自动推断警告；
+# 13.0 与 Xcode 工程 IPHONEOS_DEPLOYMENT_TARGET 及 in_app_purchase 要求一致）
+platform :ios, '13.0'
+
+# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+project 'Runner', {
+  'Debug' => :debug,
+  'Profile' => :release,
+  'Release' => :release,
+}
+
+def flutter_root
+  generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  unless File.exist?(generated_xcode_build_settings_path)
+    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+  end
+
+  generated_xcode_build_settings = parse_KV_file(generated_xcode_build_settings_path)
+  flutter_root = generated_xcode_build_settings.map { |k, v| v if k == 'FLUTTER_ROOT' }.compact.first
+  raise 'Unable to find FLUTTER_ROOT in Generated.xcconfig' unless flutter_root
+  flutter_root
+end
+
+require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
+
+flutter_ios_podfile_setup
+
+target 'Runner' do
+  use_frameworks!
+  flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+
+  target 'RunnerTests' do
+    inherit! :search_paths
+  end
+end
+
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    flutter_additional_ios_build_settings(target)
+  end
+end
