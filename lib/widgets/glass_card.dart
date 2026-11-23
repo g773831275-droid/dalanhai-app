@@ -33,7 +33,8 @@ class GlassCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.glass,
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: AppColors.cardBorder),
+              boxShadow: AppColors.cardShadow,
             ),
             child: onTap != null
                 ? GestureDetector(onTap: onTap, child: child)

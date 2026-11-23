@@ -73,7 +73,7 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text('密码设置',
-            style: TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -90,11 +90,12 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0x1A7DC4FF)),
+                border: Border.all(color: AppColors.cardBorder),
+                boxShadow: AppColors.cardShadow,
                 gradient: const LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+                  colors: [Color(0x8C123A6B), Color(0xB30A1F3D)],
                 ),
               ),
               child: Padding(
@@ -105,10 +106,10 @@ class _PasswordSettingsPageState extends State<PasswordSettingsPage> {
                   autofocus: true,
                   obscureText: _obscure, // 默认掩码 * 隐藏内容
                   maxLength: 40,
-                  style: const TextStyle(color: Color(0xFFE5EFFA), fontSize: 14, letterSpacing: 1.5),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, letterSpacing: 1.5),
                   decoration: InputDecoration(
                     hintText: '请输入新密码（至少 6 位）',
-                    hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
+                    hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
                     counterText: '',
                     border: InputBorder.none,
                     // 小眼睛：点击切换明文/密文

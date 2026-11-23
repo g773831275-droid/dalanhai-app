@@ -246,6 +246,8 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
   }
 
   void _openAuthorProfile() {
+    // v2.9.11 账号注销：已注销作者点击无响应（AGENTS.md §12.1.3）
+    if (_post.author.closed) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => UserProfilePage(uid: _post.author.uid),
@@ -391,9 +393,9 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.deep,
-        title: Text('删除日志', style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+        title: Text('删除日志', style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: Text('删除后该日志及其全部评论、点赞将一并移除，且不可恢复',
-            style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
           TextButton(
@@ -531,8 +533,9 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                         ),
                       )),
                       // 关注/已关注（金色主按钮；本人日志不展示 —— 需求一.1；
-                      // 本人判定完成前不渲染，防非本人日志按钮闪现）
-                      if (!_isSelf && _selfResolved)
+                      // 本人判定完成前不渲染，防非本人日志按钮闪现；
+                      // v2.9.11 账号注销：已注销作者不展示关注按钮）
+                      if (!_isSelf && _selfResolved && !_post.author.closed)
                         AnimatedBuilder(
                           animation: FollowState.instance,
                           builder: (context, _) {
@@ -592,7 +595,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                           const SizedBox(width: 4),
                           Text('${_post.likeCount}',
                               style: TextStyle(
-                                  color: _post.liked ? AppColors.coral : AppColors.sub)),
+                                  color: _post.liked ? AppColors.coral : AppColors.textTertiary)),
                         ]),
                       ),
                     ]),
@@ -623,7 +626,11 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
       ),
       // 评论输入栏（v2.9.7.1：回复预置@置灰前缀 / 空内容置灰 / @检测）
       Container(
-        color: AppColors.deep,
+        decoration: BoxDecoration(
+          color: AppColors.deep,
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.cardShadow,
+        ),
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + MediaQuery.of(context).viewInsets.bottom * 0),
         child: Row(children: [
           if (_replyTarget != null)
@@ -642,7 +649,7 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
             child: TextField(
               controller: _commentCtrl,
               focusNode: _commentFocus,
-              style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 13),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
               onChanged: _onCommentChanged,
               decoration: InputDecoration(
                 // 预置 @昵称：置灰固定前缀（独立 Widget，内部文字不可编辑，
@@ -653,10 +660,10 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
                         padding: const EdgeInsets.only(left: 12),
                         child: Text('$_replyPrefix ',
                             style: const TextStyle(
-                                color: AppColors.sub, fontSize: 13)),
+                                color: AppColors.textHint, fontSize: 13)),
                       ),
                 hintText: _replyPrefix == null ? _hintText : '',
-                hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
+                hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
                 filled: true,
                 fillColor: AppColors.abyss,
                 contentPadding:
@@ -722,13 +729,13 @@ class _CloudPostDetailPageState extends State<CloudPostDetailPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.deep,
-        title: Text(title, style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+        title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: TextField(
           controller: ctrl,
           maxLength: maxLength,
           autofocus: true,
-          style: const TextStyle(color: Color(0xFFEAF2FF)),
-          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppColors.sub)),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppColors.textHint)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),

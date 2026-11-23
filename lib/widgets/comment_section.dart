@@ -304,10 +304,10 @@ class CommentSectionState extends State<CommentSection> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.deep,
-        title: Text('删除评论', style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+        title: Text('删除评论', style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: Text(
           c.isReply ? '删除该回复？其下属回复将一并移除' : '删除该评论？其下属全部回复将一并移除',
-          style: const TextStyle(color: AppColors.sub, fontSize: 13),
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
@@ -365,6 +365,7 @@ class CommentSectionState extends State<CommentSection> {
           color: AppColors.deep,
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           borderRadius: BorderRadius.circular(18),
+          boxShadow: AppColors.cardShadow,
         ),
         child: SafeArea(
           top: false,
@@ -397,7 +398,7 @@ class CommentSectionState extends State<CommentSection> {
         alignment: Alignment.center,
         child: Text(label,
             style: TextStyle(
-                color: color ?? const Color(0xFFEAF2FF),
+                color: color ?? AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600)),
       ),
@@ -433,7 +434,7 @@ class CommentSectionState extends State<CommentSection> {
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text('暂无评论，快来抢沙发',
-                  style: TextStyle(color: AppColors.sub, fontSize: 12)),
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
             ),
           )
         else
@@ -479,7 +480,7 @@ class CommentSectionState extends State<CommentSection> {
   }
 
   InlineSpan _plainSpan(String s) => TextSpan(
-      text: s, style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 13, height: 1.4));
+      text: s, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, height: 1.4));
 
   TapGestureRecognizer _mentionRecognizerOf(String name) {
     return _mentionTaps.putIfAbsent(name, () {
@@ -502,10 +503,11 @@ class CommentSectionState extends State<CommentSection> {
   }
 
   /// @昵称 → 搜索接口精确匹配昵称 → 用户主页（游客可读，无需登录）；
-  /// 找不到/接口异常给提示
+  /// 找不到/接口异常给提示；
+  /// v2.9.11 账号注销：命中已注销用户 → 静默不跳转不弹窗（AGENTS.md §12.1.4）
   Future<void> _openMentionProfile(String name) async {
     try {
-      final list = await _api.searchUsers(name);
+      final list = await _api.searchUsers(name, includeClosed: true);
       CloudUserSearchItem? match;
       for (final u in list) {
         if (u.nickname == name) {
@@ -518,6 +520,7 @@ class CommentSectionState extends State<CommentSection> {
         _toast('未找到该船员');
         return;
       }
+      if (match.closed) return; // 已注销用户：无响应（不跳转/不报错/不弹窗）
       _openProfile(match.userId);
     } on ApiException catch (e) {
       _toast(e.code == 401 ? '登录已失效，请重新登录' : '未找到该船员');
@@ -543,7 +546,7 @@ class CommentSectionState extends State<CommentSection> {
     return base.length >= 19 ? base.substring(0, 19) : base;
   }
 
-  void _openProfile(int uid) {
+  void _openProfile(int uid, {bool closed = false}) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
     );
@@ -563,12 +566,12 @@ class CommentSectionState extends State<CommentSection> {
           Flexible(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _openProfile(c.author.uid),
+              onTap: () => _openProfile(c.author.uid, closed: c.author.closed),
               onLongPress: null,
               child: Text(c.author.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: AppColors.foam, fontSize: fontSize)),
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: fontSize)),
             ),
           ),
           if (c.isPostAuthor) ...[
@@ -594,12 +597,15 @@ class CommentSectionState extends State<CommentSection> {
             Flexible(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap:
-                    replyToUid == null ? null : () => _openProfile(replyToUid),
+                onTap: replyToUid == null
+                    // v2.9.11 账号注销：被回复者已匿名（后端昵称快照改写）时点击无响应
+                    ? null
+                    : () => _openProfile(replyToUid,
+                        closed: replyToNickname == '已注销用户'),
                 child: Text(replyToNickname,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: AppColors.sub, fontSize: fontSize - 0.5)),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: fontSize - 0.5)),
               ),
             ),
           ],
@@ -629,7 +635,7 @@ class CommentSectionState extends State<CommentSection> {
             const Text('💬', style: TextStyle(fontSize: 13)),
             const SizedBox(width: 3),
             Text('${c.isReply ? 0 : c.replyCount}',
-                style: const TextStyle(color: AppColors.sub, fontSize: 11)),
+                style: const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
           ]),
         ),
       ),
@@ -644,7 +650,7 @@ class CommentSectionState extends State<CommentSection> {
             const SizedBox(width: 3),
             Text('${c.likeCount}',
                 style: TextStyle(
-                    color: c.liked ? AppColors.coral : AppColors.sub, fontSize: 11)),
+                    color: c.liked ? AppColors.coral : AppColors.textTertiary, fontSize: 11)),
           ]),
         ),
       ),
@@ -674,7 +680,7 @@ class CommentSectionState extends State<CommentSection> {
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _openProfile(c.author.uid),
+              onTap: () => _openProfile(c.author.uid, closed: c.author.closed),
               child: Container(
                 width: 28,
                 height: 28,
@@ -733,7 +739,7 @@ class CommentSectionState extends State<CommentSection> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => _openProfile(r.author.uid),
+            onTap: () => _openProfile(r.author.uid, closed: r.author.closed),
             child: Container(
               width: 22,
               height: 22,

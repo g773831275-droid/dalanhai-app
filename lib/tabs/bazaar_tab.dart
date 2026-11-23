@@ -144,7 +144,7 @@ class _BazaarTabState extends State<BazaarTab> {
                 '点击群名进入群聊 · 与船员们交流',
                 style: TextStyle(
                   fontSize: 11,
-                  color: AppColors.sub,
+                  color: AppColors.textTertiary,
                   letterSpacing: 1,
                 ),
               ),
@@ -170,12 +170,12 @@ class _BazaarTabState extends State<BazaarTab> {
           ),
           content: const Text(
             '登录后即可进入群聊，与船员们交流',
-            style: TextStyle(color: AppColors.sub, fontSize: 13, height: 1.6),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.6),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(navCtx, false),
-              child: const Text('取消', style: TextStyle(color: AppColors.sub)),
+              child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(navCtx, true),
@@ -262,7 +262,8 @@ class _BazaarTabState extends State<BazaarTab> {
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: AppColors.cardBorder),
+              boxShadow: AppColors.cardShadow,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -295,7 +296,7 @@ class _BazaarTabState extends State<BazaarTab> {
                 Text(label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, color: Color(0xFFE5EFFA))),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
               ],
             ),
           ),
@@ -425,7 +426,8 @@ class _GroupItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: AppColors.cardBorder),
+              boxShadow: AppColors.cardShadow,
             ),
             child: Row(
               children: [
@@ -462,7 +464,7 @@ class _GroupItem extends StatelessWidget {
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFFEAF2FF),
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ),
@@ -473,7 +475,7 @@ class _GroupItem extends StatelessWidget {
                               group.time,
                               style: const TextStyle(
                                 fontSize: 11,
-                                color: AppColors.sub,
+                                color: AppColors.textTertiary,
                               ),
                             ),
                           ),
@@ -487,7 +489,7 @@ class _GroupItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.sub,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -556,7 +558,8 @@ class _CloudGroupItem extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: AppColors.cardBorder),
+              boxShadow: AppColors.cardShadow,
             ),
             child: Row(
               children: [
@@ -590,7 +593,7 @@ class _CloudGroupItem extends StatelessWidget {
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
-                                color: Color(0xFFEAF2FF),
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ),
@@ -601,7 +604,7 @@ class _CloudGroupItem extends StatelessWidget {
                               _timeLabel(group.lastAt),
                               style: const TextStyle(
                                 fontSize: 11,
-                                color: AppColors.sub,
+                                color: AppColors.textTertiary,
                               ),
                             ),
                           ),
@@ -616,7 +619,7 @@ class _CloudGroupItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.sub,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],

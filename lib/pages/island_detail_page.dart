@@ -157,12 +157,12 @@ class _IslandDetailPageState extends State<IslandDetailPage> {
         ),
         content: const Text(
           '打卡记录将和你的账号云端同步，请先登录',
-          style: TextStyle(color: AppColors.sub, fontSize: 13, height: 1.6),
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.6),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消', style: TextStyle(color: AppColors.sub)),
+            child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
@@ -237,7 +237,7 @@ class _IslandDetailPageState extends State<IslandDetailPage> {
               // 副标题：连续 X 天 · 距离征服还差 X 天（后端计算值）
               Text(
                 '连续 $streak 天 · 距离征服还差 $remain 天',
-                style: const TextStyle(fontSize: 14, color: Colors.white70, height: 1.6),
+                style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.6),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 18),
@@ -398,7 +398,7 @@ class _IslandDetailPageState extends State<IslandDetailPage> {
               const Text(
                 '长按识别二维码，添加船务长微信\n他会带你上对应岛屿的官方船',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.white70, height: 1.6),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.6),
               ),
               const SizedBox(height: 16),
               // 二维码（白底圆角容器，对齐 H5 .qr-box）
@@ -418,12 +418,12 @@ class _IslandDetailPageState extends State<IslandDetailPage> {
               const SizedBox(height: 14),
               const Text(
                 '船务长微信：abccba978',
-                style: TextStyle(fontSize: 12, color: AppColors.sub),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 4),
               const Text(
                 '客服邮箱：gktvipyx@163.com',
-                style: TextStyle(fontSize: 12, color: AppColors.sub),
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 18),
               // 金色「我知道了」→ 关闭弹窗
@@ -522,7 +522,7 @@ class _DetailTopBar extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     'ON VOYAGE · $streak DAYS',
-                    style: const TextStyle(fontSize: 11, color: AppColors.sub, letterSpacing: 1),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textTertiary, letterSpacing: 1),
                   ),
                 ],
               ),
@@ -613,7 +613,7 @@ class _DetailHero extends StatelessWidget {
                 '"${island.slogan}"',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.foam.withValues(alpha: 0.85),
+                  color: AppColors.textSecondary,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -639,7 +639,7 @@ class _DetailHero extends StatelessWidget {
               // label
               Text(
                 'CONSECUTIVE · TARGET ${Island.target}'.toUpperCase(),
-                style: const TextStyle(fontSize: 12, color: AppColors.sub, letterSpacing: 2),
+                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary, letterSpacing: 2),
               ),
             ],
           ),
@@ -866,9 +866,10 @@ class _RuleItem extends StatelessWidget {
           gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+            colors: [Color(0x8C123A6B), Color(0xB30A1F3D)],
           ),
-          border: Border.all(color: AppColors.sky.withValues(alpha: 0.1)),
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.cardShadow,
         ),
         child: Row(
           children: [
@@ -878,7 +879,7 @@ class _RuleItem extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(text, style: const TextStyle(fontSize: 14, color: Color(0xFFE5EFFA))),
+              child: Text(text, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary)),
             ),
             if (onTap != null)
               const Text('›', style: TextStyle(fontSize: 18, color: AppColors.sub)),

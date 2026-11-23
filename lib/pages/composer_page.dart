@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../theme/colors.dart';
@@ -8,6 +8,7 @@ import '../services/cloud_models.dart' show cloudIslandToLocal;
 import '../services/image_pipeline.dart';
 import '../services/media_rules.dart';
 import '../services/session_store.dart';
+import '../services/social_state.dart' show MeState;
 import '../app.dart' show appTabIndex;
 import '../widgets/at_user_picker.dart';
 
@@ -31,7 +32,8 @@ class _ComposerPageState extends State<ComposerPage> {
   final _focusNode = FocusNode(); // 主输入框焦点（@弹窗打开期间保持键盘）
   final _selectedTags = <String>{};
   // v2.6.1 媒体规范：单帖最多 4 张（后端强校验，前端同规则前置拦截）
-  final List<String?> _images = List<String?>.filled(MediaRules.imageMaxPerPost, null);
+  // v2.9.12：直存压缩产物字节（此前 base64 dataUrl 中转，+33% 内存且上传再解码）
+  final List<Uint8List?> _images = List<Uint8List?>.filled(MediaRules.imageMaxPerPost, null);
 
   static const _allTags = ['清心岛', '戒烟岛', '健身岛', '早睡岛', '日更', '新船员', '妙招'];
 
@@ -46,6 +48,14 @@ class _ComposerPageState extends State<ComposerPage> {
   final _picker = ImagePicker();
   final CloudApi _api = CloudApi.instance;
   bool _submitting = false; // 防重复提交（发布中禁用按钮）
+  // ── 预上传（2026-11-19 多图 429 修复）────────────────────────
+  // 选图后立即串行上传（一张成功再下一张，降并发冲击），全部就绪后
+  // 发布按钮才可用 —— 上传中途无法点发布，防重复提交与限流误触。
+  final List<String?> _keys = List<String?>.filled(MediaRules.imageMaxPerPost, null); // 槽位对齐的上传产物 key
+  bool _uploading = false; // 预上传泵运行中
+  int _uploadDone = 0; // 进度计数（本轮泵已完成张数）
+  int _uploadTotal = 0;
+  String? _submitLabel; // 提交中按钮文案（带图帖=图片审核等待提示）
 
   // ── @用户唤起（v2.9.9：与评论区/详情页回复输入框同一套交互，复用 AtUserPicker）──
   int _lastTextLength = 0; // 删字检测（文本变短 → 打开中的 @弹窗自动收起）
@@ -65,11 +75,93 @@ class _ComposerPageState extends State<ComposerPage> {
     try {
       // v2.9.3：直接传 XFile（Web 跳过原生压缩用原图；移动端走原生压缩管线）
       final bytes = await compressImage(picked);
-      setState(() => _images[slot] = 'data:image/jpeg;base64,${base64Encode(bytes)}');
+      setState(() {
+        _images[slot] = bytes;
+        _keys[slot] = null;
+      });
+      _pumpUploads(); // 选图即入队串行预上传
     } on MediaValidationException catch (e) {
       _toast(e.message);
     } catch (_) {
       _toast('图片处理失败，请换一张试试');
+    }
+  }
+
+  /// 上传失败结构化排障日志（release 静默，同 cloud_api._ossDebug 规范）：
+  /// 输出 uid / 失败类型（risk_limit=用户每分钟配额 · ip_freq_waf=WAF/ESA/nginx
+  /// IP 频控 · timeout · sign_invalid · file_validate · auth_expired · 其他）/
+  /// put-sign 与 PUT 时间戳 / 文件大小、后缀、轻量指纹 / OSS 原始响应
+  Future<void> _logUploadFailure(ImageUploadFailure f, int slot) async {
+    if (kReleaseMode) return; // debugPrint 不被 release tree-shake，须显式守卫
+    int? uid;
+    try {
+      uid = await MeState.instance.uid();
+    } catch (_) {}
+    final bytes = _images[slot];
+    final size = bytes?.length ?? 0;
+    // 轻量指纹：长度 + 前 8 字节 hex（不引入 crypto 依赖，仅用于区分文件）
+    final fp = bytes == null
+        ? '0'
+        : '$size-${bytes.take(8).map((b) => b.toRadixString(16).padLeft(2, '0')).join()}';
+    debugPrint('[upload-fail] uid=$uid failType=${f.failType} stage=${f.stage} http=${f.httpStatus} msg="${f.message}"');
+    debugPrint('[upload-fail] putSignAt=${f.putSignAt} putStartAt=${f.putStartAt} file={size:$size, ext:jpg, fp:$fp}');
+    if (f.ossResponse != null) {
+      debugPrint('[upload-fail] ossResponse=${f.ossResponse}');
+    }
+  }
+
+  /// 预上传串行泵：扫描待上传槽（有图无 key）逐张上传；泵运行中新增的图
+  /// 由 while 轮询接力。失败槽回收（toast 提示删除重选），中止本轮泵。
+  Future<void> _pumpUploads() async {
+    if (_uploading) return;
+    _uploading = true;
+    try {
+      while (true) {
+        final pending = _images
+            .asMap()
+            .entries
+            .where((e) => e.value != null && _keys[e.key] == null)
+            .map((e) => e.key)
+            .toList();
+        if (pending.isEmpty || !mounted) break;
+        setState(() {
+          _uploadTotal = pending.length;
+          _uploadDone = 0;
+        });
+        for (final i in pending) {
+          try {
+            final key = await _api.uploadImage(_images[i]!, ext: 'jpg');
+            if (!mounted) return;
+            if (_images[i] == null) continue; // 上传期间槽被删除 → 丢弃 key
+            setState(() {
+              _keys[i] = key;
+              _uploadDone++;
+            });
+          } on ImageUploadFailure catch (f) {
+            if (!mounted) return;
+            await _logUploadFailure(f, i); // 结构化排障日志（分类：risk限流/IP频控/超时/签名/文件校验/其他）
+            _toast('图片上传失败，请删除该图后重新选择'); // 文案不变
+            setState(() {
+              _images[i] = null;
+              _keys[i] = null;
+            });
+            return; // 中止泵，待用户处理
+          } catch (e) {
+            if (!mounted) return;
+            await _logUploadFailure(
+                ImageUploadFailure('put_sign', 'other', '$e'), i);
+            _toast('图片上传失败，请删除该图后重新选择'); // 文案不变
+            setState(() {
+              _images[i] = null;
+              _keys[i] = null;
+            });
+            return; // 中止泵，待用户处理
+          }
+        }
+      }
+    } finally {
+      _uploading = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -80,9 +172,12 @@ class _ComposerPageState extends State<ComposerPage> {
     );
   }
 
-  /// 删除图片（点击已选图片）
+  /// 删除图片（点击已选图片）—— 已传 key 一并作废（无引用对象走 OSS 生命周期清退）
   void _removeImage(int slot) {
-    setState(() => _images[slot] = null);
+    setState(() {
+      _images[slot] = null;
+      _keys[slot] = null;
+    });
   }
 
   // ── @ 触发检测（与详情页 _onCommentChanged 同款规则）──────────
@@ -149,7 +244,7 @@ class _ComposerPageState extends State<ComposerPage> {
   Future<void> _submit() async {
     if (_submitting) return;
     final text = _textCtrl.text.trim();
-    final imgs = _images.where((x) => x != null).cast<String>().toList();
+    final imgs = _images.whereType<Uint8List>().toList();
     // v2.6.1：单帖 ≤4 张（与后端闸门同规则；槽位本身也限制 4）
     if (imgs.length > MediaRules.imageMaxPerPost) {
       _toast('单次发帖最多 ${MediaRules.imageMaxPerPost} 张图片');
@@ -164,13 +259,24 @@ class _ComposerPageState extends State<ComposerPage> {
       return;
     }
 
-    setState(() => _submitting = true);
+    // 带图帖提交后服务端同步过 Green 图片审核（重试≤2 次/12s 超时）——
+    // 等待提示明确告知用户（2026-11-19 审核等待体验优化）
+    setState(() {
+      _submitting = true;
+      _submitLabel = imgs.isNotEmpty ? '图片审核加载中，请耐心等待' : null;
+    });
     try {
-      // 1. 图片逐张 OSS 直传（压缩产物为 jpeg base64 data url → 换对象 key）
+      // 1. 图片 keys：取预上传产物（选图后已串行上传；上传未就绪时按钮已禁用，这里兜底校验）
       final keys = <String>[];
-      for (final dataUrl in imgs) {
-        final bytes = base64Decode(dataUrl.split(',').last);
-        keys.add(await _api.uploadImage(bytes, ext: 'jpg'));
+      for (var i = 0; i < _images.length; i++) {
+        if (_images[i] != null) {
+          final k = _keys[i];
+          if (k == null) {
+            _toast('图片还在上传中，请稍候再发布');
+            return;
+          }
+          keys.add(k);
+        }
       }
       // 2. 岛屿归属（v2.9.3 多岛屿分发）：勾选几个岛就传几个 key，
       //    主岛（展示用）取第一个 —— 不再只取第一个丢掉其余
@@ -249,7 +355,12 @@ class _ComposerPageState extends State<ComposerPage> {
     } catch (_) {
       _toast('发布失败，请检查网络后重试');
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _submitLabel = null;
+        });
+      }
     }
   }
 
@@ -277,8 +388,14 @@ class _ComposerPageState extends State<ComposerPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // 顶栏（返回 + 标题 + 发布按钮；发布中禁用防重复提交）
-            _TopBar(onSubmit: _submit, busy: _submitting),
+            // 顶栏（返回 + 标题 + 发布按钮；上传中/发布中禁用防重复提交与限流误触）
+            _TopBar(
+              onSubmit: _submit,
+              busy: _submitting || _uploading,
+              busyLabel: _uploading
+                  ? '上传中 $_uploadDone/$_uploadTotal'
+                  : _submitLabel,
+            ),
             // 内容（v2.9.2：留白适度加大，减少拥挤感）
             Expanded(
               child: SingleChildScrollView(
@@ -291,7 +408,8 @@ class _ComposerPageState extends State<ComposerPage> {
                       decoration: BoxDecoration(
                         color: const Color(0x59000000), // rgba(0,0,0,.35)
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.sky.withValues(alpha: 0.2)),
+                        border: Border.all(color: AppColors.cardBorder),
+                        boxShadow: AppColors.cardShadow,
                       ),
                       child: TextField(
                         controller: _textCtrl,
@@ -300,28 +418,31 @@ class _ComposerPageState extends State<ComposerPage> {
                         maxLines: 6,
                         minLines: 4,
                         maxLength: 800,
-                        style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.6),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.6),
                         decoration: const InputDecoration(
                           hintText: '分享今天的坚持与状态（最多800字）',
-                          hintStyle: TextStyle(color: AppColors.placeholder),
+                          hintStyle: TextStyle(color: AppColors.textHint),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.all(12),
-                          counterStyle: TextStyle(color: AppColors.sub, fontSize: 11),
+                          counterStyle: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                         ),
                       ),
                     ),
                     const SizedBox(height: 16),
                     // 4 个图片槽（v2.6.1 媒体规范：单帖最多 4 张；选中即预览缩略图 + 右上角单独删除）
+                    // 间距用 SizedBox 独立占位（勿改回 Padding 内缩——会让末槽比前三个宽）
                     Row(
-                      children: List.generate(MediaRules.imageMaxPerPost, (i) => Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(right: i < MediaRules.imageMaxPerPost - 1 ? 10 : 0),
-                          child: _ImageSlot(
-                            image: _images[i],
-                            onTap: () => _images[i] == null ? _pickImage(i) : _removeImage(i),
+                      children: [
+                        for (int i = 0; i < MediaRules.imageMaxPerPost; i++) ...[
+                          if (i > 0) const SizedBox(width: 10),
+                          Expanded(
+                            child: _ImageSlot(
+                              image: _images[i],
+                              onTap: () => _images[i] == null ? _pickImage(i) : _removeImage(i),
+                            ),
                           ),
-                        ),
-                      )),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 16),
                     // 标签 chips（v2.9.2：弱化厚重边框、降低饱和度；选中保留金色高亮）
@@ -341,15 +462,15 @@ class _ComposerPageState extends State<ComposerPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
                               gradient: on ? AppColors.btnGoldGradient : null,
-                              color: on ? null : AppColors.card,
+                              color: on ? null : AppColors.gold.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(999),
-                              border: on ? null : Border.all(color: AppColors.line),
+                              border: on ? null : Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
                             ),
                             child: Text(
                               '#$t',
                               style: TextStyle(
                                 fontSize: 11,
-                                color: on ? AppColors.goldBtnText : AppColors.sub,
+                                color: on ? AppColors.goldBtnText : AppColors.gold,
                                 fontWeight: on ? FontWeight.w600 : FontWeight.w400,
                               ),
                             ),
@@ -372,7 +493,8 @@ class _ComposerPageState extends State<ComposerPage> {
 class _TopBar extends StatelessWidget {
   final VoidCallback onSubmit;
   final bool busy;
-  const _TopBar({required this.onSubmit, this.busy = false});
+  final String? busyLabel; // 禁用态按钮文案（上传中显示进度）
+  const _TopBar({required this.onSubmit, this.busy = false, this.busyLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +516,7 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '记录今天的坚持，寄给同海域的船员',
-                  style: TextStyle(fontSize: 11, color: AppColors.sub),
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -402,7 +524,7 @@ class _TopBar extends StatelessWidget {
           TextButton(
             onPressed: busy ? null : onSubmit,
             child: Text(
-              busy ? '发布中…' : '发布',
+              busyLabel ?? (busy ? '发布中…' : '发布'),
               style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w600),
             ),
           ),
@@ -414,7 +536,7 @@ class _TopBar extends StatelessWidget {
 
 /// 图片槽 — 对应 H5 .composer .img-slot（aspect-ratio:1, dashed border, + 占位）
 class _ImageSlot extends StatelessWidget {
-  final String? image; // base64 data url 或 null
+  final Uint8List? image; // 压缩产物字节或 null
   final VoidCallback onTap;
 
   const _ImageSlot({required this.image, required this.onTap});
@@ -432,14 +554,14 @@ class _ImageSlot extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             border: hasImage
                 ? null
-                : Border.all(color: AppColors.sky.withValues(alpha: 0.3), style: BorderStyle.solid),
+                : Border.all(color: AppColors.cardBorder, style: BorderStyle.solid),
           ),
           clipBehavior: Clip.antiAlias,
           child: hasImage
               ? Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.memory(base64Decode(image!.split(',').last), fit: BoxFit.cover),
+                    Image.memory(image!, fit: BoxFit.cover),
                     // 删除小角标
                     Positioned(
                       top: 4, right: 4,

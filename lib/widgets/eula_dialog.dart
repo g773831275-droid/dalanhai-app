@@ -46,6 +46,7 @@ class EulaDialog extends StatelessWidget {
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
+            ...AppColors.cardShadow,
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.6),
               blurRadius: 60,
@@ -86,7 +87,7 @@ class EulaDialog extends StatelessWidget {
                     _eulaSpan,
                     style: const TextStyle(
                       fontSize: 13,
-                      color: AppColors.sub,
+                      color: AppColors.textPrimary,
                       height: 1.8,
                     ),
                   ),
@@ -129,7 +130,7 @@ class EulaDialog extends StatelessWidget {
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text(
                 '不同意',
-                style: TextStyle(color: AppColors.sub, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
             ),
           ],
@@ -146,31 +147,31 @@ const TextSpan _eulaSpan = TextSpan(
     TextSpan(text: '\n\n'),
     TextSpan(
       text: '1. 内容规范',
-      style: TextStyle(color: AppColors.foam, fontWeight: FontWeight.w700),
+      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
     ),
     TextSpan(text: '：本应用对色情、暴力、歧视、骚扰及违法内容持零容忍态度。严禁发布此类信息及他人隐私。'),
     TextSpan(text: '\n\n'),
     TextSpan(
       text: '2. 用户行为',
-      style: TextStyle(color: AppColors.foam, fontWeight: FontWeight.w700),
+      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
     ),
     TextSpan(text: '：尊重其他船员，禁止辱骂、人身攻击、刷屏骚扰。'),
     TextSpan(text: '\n\n'),
     TextSpan(
       text: '3. 内容管理与过滤',
-      style: TextStyle(color: AppColors.foam, fontWeight: FontWeight.w700),
+      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
     ),
     TextSpan(text: '：为了维护社区环境，本 App 采用自动过滤技术与人工巡查相结合的方式对内容进行管理。'),
     TextSpan(text: '\n\n'),
     TextSpan(
       text: '4. 举报与拉黑',
-      style: TextStyle(color: AppColors.foam, fontWeight: FontWeight.w700),
+      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
     ),
     TextSpan(text: '：遇到不良内容或用户，请使用举报或拉黑功能。我们承诺在 24 小时内响应举报，核实后移除违规内容并封禁违规账号。'),
     TextSpan(text: '\n\n'),
     TextSpan(
       text: '5. 违规处理',
-      style: TextStyle(color: AppColors.foam, fontWeight: FontWeight.w700),
+      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700),
     ),
     TextSpan(text: '：违规用户将被立即拉黑、内容移除，严重者永久封禁。'),
   ],

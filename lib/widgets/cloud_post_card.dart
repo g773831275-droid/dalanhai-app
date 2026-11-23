@@ -88,9 +88,10 @@ class CloudPostCard extends StatelessWidget {
           border: Border.all(
             color: checked
                 ? AppColors.gold.withValues(alpha: 0.8)
-                : AppColors.sky.withValues(alpha: 0.12),
+                : AppColors.cardBorder,
           ),
           boxShadow: [
+            ...AppColors.cardShadow,
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.35),
               blurRadius: 16,
@@ -124,7 +125,7 @@ class CloudPostCard extends StatelessWidget {
                       if (post.content.isNotEmpty)
                         MentionText(
                           text: _cardBody(post.content),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFEAF2FF), height: 1.5),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.5),
                         ),
                       // 话题标签：长按吸收（不触发卡片菜单），点击行为不变
                       if (post.tags.isNotEmpty)
@@ -155,7 +156,13 @@ class CloudPostCard extends StatelessWidget {
                           // 作者头像（可点击 → 他人主页；长按吸收不触发菜单）
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: onAvatarTap == null ? null : () => onAvatarTap!(post.author),
+                            onTap: onAvatarTap == null
+                                ? null
+                                : () {
+                                    // v2.9.11 账号注销：已注销作者点击无响应
+                                    if (post.author.closed) return;
+                                    onAvatarTap!(post.author);
+                                  },
                             onLongPress: () {},
                             child: Container(
                               width: 24, height: 24,
@@ -178,7 +185,7 @@ class CloudPostCard extends StatelessWidget {
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
                               onLongPress: () {},
-                              child: Text(post.author.displayName, style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+                              child: Text(post.author.displayName, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
                             ),
                           ),
                           GestureDetector(
@@ -199,7 +206,7 @@ class CloudPostCard extends StatelessWidget {
                                     '${post.likeCount}',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: post.liked ? AppColors.coral : AppColors.foam,
+                                      color: post.liked ? AppColors.coral : AppColors.textTertiary,
                                     ),
                                   ),
                                 ],
@@ -214,7 +221,7 @@ class CloudPostCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               child: Text(
                                 '💬 ${post.commentCount}',
-                                style: const TextStyle(fontSize: 12, color: AppColors.sub),
+                                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
                               ),
                             ),
                           ),

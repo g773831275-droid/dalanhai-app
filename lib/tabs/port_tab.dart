@@ -425,14 +425,8 @@ class _PostCard extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [Color(0x8C123A6B), Color(0xBF0A1F3D)],
           ),
-          border: Border.all(color: AppColors.sky.withValues(alpha: 0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.cardShadow,
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -459,7 +453,7 @@ class _PostCard extends StatelessWidget {
                   if (post.text.isNotEmpty)
                     Text(
                       post.text,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFFEAF2FF), height: 1.4),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.4),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -498,7 +492,7 @@ class _PostCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Expanded(
-                        child: Text(post.author, style: const TextStyle(fontSize: 11, color: AppColors.sub)),
+                        child: Text(post.author, style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
                       ),
                       // 点赞
                       Text(
@@ -560,8 +554,8 @@ class _EmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text('🌊', style: TextStyle(fontSize: 44, height: 2)),
-          const Text('这片海域还很安静', style: TextStyle(fontSize: 13, color: AppColors.sub, height: 2)),
-          const Text('点底栏 ＋ 发出第一条日志', style: TextStyle(fontSize: 11, color: AppColors.sub, height: 2)),
+          const Text('这片海域还很安静', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 2)),
+          const Text('点底栏 ＋ 发出第一条日志', style: TextStyle(fontSize: 11, color: AppColors.textTertiary, height: 2)),
         ],
       ),
     );
@@ -587,13 +581,13 @@ class _CloudErrorView extends StatelessWidget {
         children: [
           const Text('🌫️', style: TextStyle(fontSize: 44, height: 2)),
           const Text('海域信号不佳，日志加载失败',
-              style: TextStyle(fontSize: 13, color: AppColors.sub, height: 2)),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 2)),
           if (message != null && message!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(message!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11, color: AppColors.sub, height: 1.8)),
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, height: 1.8)),
             ),
           const SizedBox(height: 16),
           GestureDetector(
@@ -763,7 +757,7 @@ class _CloudFeedView extends StatelessWidget {
                             : loader.reachedEnd
                                 ? '已经到底啦 · 共 ${loader.posts.length} 条'
                                 : '',
-                        style: const TextStyle(fontSize: 11, color: AppColors.sub),
+                        style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
                       ),
                     ),
                   ),
@@ -831,14 +825,8 @@ class _CloudCard extends StatelessWidget {
             end: Alignment.bottomCenter,
             colors: [Color(0x8C123A6B), Color(0xBF0A1F3D)],
           ),
-          border: Border.all(color: AppColors.sky.withValues(alpha: 0.12)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.cardShadow,
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -863,7 +851,7 @@ class _CloudCard extends StatelessWidget {
                       if (post.content.isNotEmpty)
                         Text(
                           _cardBody(post.content),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFFEAF2FF), height: 1.5),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary, height: 1.5),
                         ),
                       // #话题标签（v2.9.4：移除岛屿主标签胶囊 —— 顶部岛屿 Tab 已做分类，
                       // 卡片内再展示主岛属于冗余；#话题标签原样保留）
@@ -893,10 +881,14 @@ class _CloudCard extends StatelessWidget {
                           // 自己的头像由页面内部判定 → 自身公开访客预览）
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                  builder: (_) => UserProfilePage(uid: post.author.uid)),
-                            ),
+                            onTap: () {
+                              // v2.9.11：已注销作者点击无响应
+                              if (post.author.closed) return;
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => UserProfilePage(uid: post.author.uid)),
+                              );
+                            },
                             child: Container(
                               width: 24, height: 24,
                               decoration: const BoxDecoration(
@@ -914,7 +906,7 @@ class _CloudCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(post.author.displayName, style: const TextStyle(fontSize: 12, color: AppColors.sub)),
+                            child: Text(post.author.displayName, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
                           ),
                           GestureDetector(
                             onTap: () => Navigator.of(context).push(
@@ -936,7 +928,7 @@ class _CloudCard extends StatelessWidget {
                                     '${post.likeCount}',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: post.liked ? AppColors.coral : AppColors.foam,
+                                      color: post.liked ? AppColors.coral : AppColors.textTertiary,
                                     ),
                                   ),
                                 ],
@@ -952,7 +944,7 @@ class _CloudCard extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               child: Text(
                                 '💬 ${post.commentCount}',
-                                style: const TextStyle(fontSize: 12, color: AppColors.sub),
+                                style: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
                               ),
                             ),
                           ),

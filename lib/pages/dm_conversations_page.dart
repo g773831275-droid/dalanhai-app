@@ -78,7 +78,7 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('私信${_totalUnread > 0 ? ' · $_totalUnread 未读' : ''}',
-            style: const TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
       body: _loading
@@ -86,7 +86,7 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
           : _list.isEmpty
               ? const Center(
                   child: Text('暂无消息，等待船员互动',
-                      style: TextStyle(color: AppColors.sub, fontSize: 13)))
+                      style: TextStyle(color: AppColors.textTertiary, fontSize: 13)))
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 40),
                   itemCount: _list.length,
@@ -118,7 +118,7 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
                   Text(c.lastContent.isEmpty ? '（无消息）' : c.lastContent,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: AppColors.sub, fontSize: 12)),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 ],
               ),
             ),
@@ -127,7 +127,7 @@ class _DmConversationsPageState extends State<DmConversationsPage> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(_timeLabel(c.lastAt),
-                    style: const TextStyle(color: AppColors.sub, fontSize: 11)),
+                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
                 const SizedBox(height: 4),
                 if (c.unread > 0)
                   Container(

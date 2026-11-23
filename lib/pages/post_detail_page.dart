@@ -116,7 +116,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               alignment: Alignment.center,
                               child: p.avatarUrl != null
                                   ? ClipOval(child: Image.memory(_decode(p.avatarUrl!), fit: BoxFit.cover, width: 36, height: 36))
-                                  : Text(p.avatar ?? '航', style: const TextStyle(color: AppColors.parchment)),
+                                  : Text(p.avatar ?? '航', style: const TextStyle(color: AppColors.textPrimary)),
                             ),
                             const SizedBox(width: 10),
                             Expanded(child: Column(
@@ -128,9 +128,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                               ],
                             )),
                             if (isMine)
-                              _actionBtn('🗑 删除', AppColors.sub, () => _delete(context, store, p.id))
+                              _actionBtn('🗑 删除', AppColors.textSecondary, () => _delete(context, store, p.id))
                             else
-                              _actionBtn('🚫 拉黑', AppColors.sub, () => _block(context, store, p.author)),
+                              _actionBtn('🚫 拉黑', AppColors.textSecondary, () => _block(context, store, p.author)),
                           ]),
                           const SizedBox(height: 16),
                           Text(p.text, style: AppTypography.body.copyWith(fontSize: 15, height: 1.7)),
@@ -148,7 +148,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                 Icon(p.liked ? Icons.favorite : Icons.favorite_border,
                                   size: 20, color: p.liked ? AppColors.coral : AppColors.sub),
                                 const SizedBox(width: 4),
-                                Text('${p.likes}', style: TextStyle(color: p.liked ? AppColors.coral : AppColors.sub)),
+                                Text('${p.likes}', style: TextStyle(color: p.liked ? AppColors.coral : AppColors.textTertiary)),
                               ]),
                             ),
                             if (!isMine) ...[
@@ -158,7 +158,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                                 child: const Row(children: [
                                   Icon(Icons.flag_outlined, size: 18, color: AppColors.sub),
                                   SizedBox(width: 4),
-                                  Text('举报', style: TextStyle(color: AppColors.sub, fontSize: 13)),
+                                  Text('举报', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                                 ]),
                               ),
                             ],
@@ -210,7 +210,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
   void _delete(BuildContext context, DataStore store, String id) {
     showDialog(context: context, builder: (_) => AlertDialog(
       backgroundColor: AppColors.deep,
-      content: const Text('确定删除这条日志？', style: TextStyle(color: AppColors.parchment)),
+      content: const Text('确定删除这条日志？', style: TextStyle(color: AppColors.textPrimary)),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
         TextButton(onPressed: () {

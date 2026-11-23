@@ -298,7 +298,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
                     child: Text(
                       '${_index + 1} / ${widget.count}',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      style: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
                     ),
                   ),
                   const SizedBox(width: 48),

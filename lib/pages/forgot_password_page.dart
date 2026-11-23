@@ -164,7 +164,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
           ),
           alignment: Alignment.center,
           child: Text(label, style: TextStyle(
-            color: active ? AppColors.gold : AppColors.sub,
+            color: active ? AppColors.gold : AppColors.textSecondary,
             fontSize: 14, fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           )),
         ),
@@ -183,21 +183,21 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       if (_mode == 'phone')
         _Field(label: '手机号 · PHONE', child: TextField(
           controller: _phoneCtrl, keyboardType: TextInputType.phone, maxLength: 11,
-          style: const TextStyle(color: AppColors.parchment),
-          decoration: const InputDecoration(hintText: '请输入 11 位手机号', counterText: ''),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: '请输入 11 位手机号', hintStyle: TextStyle(color: AppColors.textHint), counterText: ''),
         ))
       else
         _Field(label: '邮箱 · EMAIL', child: TextField(
           controller: _emailCtrl, keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: AppColors.parchment),
-          decoration: const InputDecoration(hintText: 'captain@grandblue.io'),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'captain@grandblue.io', hintStyle: TextStyle(color: AppColors.textHint)),
         )),
       const SizedBox(height: 16),
       _Field(label: '验证码 · CODE', child: Row(children: [
         Expanded(child: TextField(
           controller: _codeCtrl, keyboardType: TextInputType.number, maxLength: 6,
-          style: const TextStyle(color: AppColors.parchment),
-          decoration: const InputDecoration(hintText: '6 位验证码', counterText: ''),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: '6 位验证码', hintStyle: TextStyle(color: AppColors.textHint), counterText: ''),
         )),
         const SizedBox(width: 10),
         ElevatedButton(
@@ -209,14 +209,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       const SizedBox(height: 16),
       _Field(label: '新密码 · NEW PASSWORD', child: TextField(
         controller: _passCtrl, obscureText: true,
-        style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '至少 6 位'),
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(hintText: '至少 6 位', hintStyle: TextStyle(color: AppColors.textHint)),
       )),
       const SizedBox(height: 16),
       _Field(label: '确认新密码 · CONFIRM', child: TextField(
         controller: _pass2Ctrl, obscureText: true,
-        style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '再次输入新密码'),
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(hintText: '再次输入新密码', hintStyle: TextStyle(color: AppColors.textHint)),
       )),
     ]);
   }
@@ -232,7 +232,7 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.sub, fontSize: 12, letterSpacing: 1)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 1)),
         const SizedBox(height: 6),
         child,
       ],

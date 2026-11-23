@@ -165,7 +165,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           backgroundColor: AppColors.cardSolid,
           behavior: SnackBarBehavior.floating),
     );
@@ -183,7 +183,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text('编辑资料',
-            style: TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
       body: _loading
@@ -209,6 +209,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               colors: [AppColors.goldLight, AppColors.copper],
                             ),
                             border: Border.all(color: const Color(0x99E8B84A), width: 2),
+                            boxShadow: AppColors.cardShadow,
                           ),
                           child: ClipOval(
                             child: UserAvatar(
@@ -244,13 +245,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 ),
                 const SizedBox(height: 8),
                 const Center(
-                  child: Text('点击头像更换', style: TextStyle(color: AppColors.sub, fontSize: 12)),
+                  child: Text('点击头像更换', style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
                 ),
                 const SizedBox(height: 28),
 
                 // ── 昵称 ──
                 const Text('昵称 · NICKNAME',
-                    style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2)),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, letterSpacing: 2)),
                 const SizedBox(height: 10),
                 _textField(
                   controller: _nickCtrl,
@@ -263,7 +264,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
                 // ── 简介 ──
                 const Text('简介 · BIO',
-                    style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2)),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11, letterSpacing: 2)),
                 const SizedBox(height: 10),
                 _textField(
                   controller: _bioCtrl,
@@ -311,15 +312,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
         border: Border.all(
           color: errorText != null ? const Color(0xFFEF4444) : const Color(0x33E8B84A),
         ),
+        boxShadow: AppColors.cardShadow,
       ),
       child: TextField(
         controller: controller,
         maxLength: maxLength,
         maxLines: maxLines,
-        style: const TextStyle(color: AppColors.parchment, fontSize: 15),
+        style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
+          hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
           counterText: '',
           border: InputBorder.none,
         ),

@@ -22,6 +22,7 @@ void showServiceDialog(BuildContext context) {
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
+            ...AppColors.cardShadow,
             BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 60, offset: const Offset(0, 20)),
           ],
         ),
@@ -47,7 +48,7 @@ void showServiceDialog(BuildContext context) {
             const SizedBox(height: 8),
             const Text(
               '长按识别二维码，添加船务长微信\n他会带你上对应岛屿的官方船',
-              style: TextStyle(fontSize: 13, color: AppColors.sub, height: 1.6),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.6),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -71,9 +72,9 @@ void showServiceDialog(BuildContext context) {
               ),
             ),
             const SizedBox(height: 12),
-            const Text('船务长微信：abccba978', style: TextStyle(fontSize: 12, color: AppColors.sub)),
+            const Text('船务长微信：abccba978', style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
             const SizedBox(height: 4),
-            const Text('客服邮箱：gktvipyx@163.com', style: TextStyle(fontSize: 12, color: AppColors.sub)),
+            const Text('客服邮箱：gktvipyx@163.com', style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
             const SizedBox(height: 12),
             // 金色「我知道了」按钮
             SizedBox(
@@ -117,7 +118,10 @@ void showInfoDialog(BuildContext context, String title, String text) {
           ),
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 60, offset: const Offset(0, 20))],
+          boxShadow: [
+            ...AppColors.cardShadow,
+            BoxShadow(color: Colors.black.withValues(alpha: 0.6), blurRadius: 60, offset: const Offset(0, 20)),
+          ],
         ),
         padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
         child: Column(
@@ -137,7 +141,7 @@ void showInfoDialog(BuildContext context, String title, String text) {
             const SizedBox(height: 8),
             Text(
               text,
-              style: const TextStyle(fontSize: 14, color: Colors.white70, height: 1.6),
+              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, height: 1.6),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 14),

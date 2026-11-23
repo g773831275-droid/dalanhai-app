@@ -83,7 +83,7 @@ class _AvatarCropPageState extends State<AvatarCropPage> {
           ),
           const SizedBox(height: 12),
           const Text('拖动或双指缩放，选取 1:1 头像区域',
-              style: TextStyle(color: AppColors.sub, fontSize: 12)),
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
           const SizedBox(height: 12),
           // 取景区
           Expanded(child: Center(child: _viewport())),
@@ -262,7 +262,7 @@ class _AvatarCropPageState extends State<AvatarCropPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('裁剪失败，请重试',
-              style: TextStyle(color: Colors.white70)),
+              style: TextStyle(color: AppColors.textPrimary)),
           backgroundColor: AppColors.cardSolid,
           behavior: SnackBarBehavior.floating,
         ),

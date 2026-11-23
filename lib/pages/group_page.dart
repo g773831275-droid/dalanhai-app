@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/cloud_api.dart';
 import '../services/cloud_models.dart';
 import '../services/social_state.dart';
+import '../pages/user_profile_page.dart';
 import '../theme/colors.dart';
 import '../widgets/alert_toast.dart';
 import '../widgets/user_avatar.dart';
@@ -22,7 +23,7 @@ class GroupPage extends StatefulWidget {
   State<GroupPage> createState() => _GroupPageState();
 }
 
-class _GroupPageState extends State<GroupPage> {
+class _GroupPageState extends State<GroupPage> with WidgetsBindingObserver {
   final CloudApi _api = CloudApi.instance;
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
@@ -40,13 +41,35 @@ class _GroupPageState extends State<GroupPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
     _scrollCtrl.addListener(_onScroll);
-    _poll = Timer.periodic(const Duration(seconds: 10), (_) => _pollNew());
+    _startPoll();
+  }
+
+  // v2.9.12：轮询生命周期感知 —— App 退后台暂停定时器，回前台恢复
+  void _startPoll() {
+    _poll ??= Timer.periodic(const Duration(seconds: 10), (_) => _pollNew());
+  }
+
+  void _stopPoll() {
+    _poll?.cancel();
+    _poll = null;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) _pollNew();
+      _startPoll();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _stopPoll();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
@@ -223,7 +246,7 @@ class _GroupPageState extends State<GroupPage> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFFEAF2FF),
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -270,13 +293,15 @@ class _GroupPageState extends State<GroupPage> {
                         decoration: BoxDecoration(
                           color: AppColors.card,
                           borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.cardBorder),
+                          boxShadow: AppColors.cardShadow,
                         ),
                         child: Text(
                           tags.isNotEmpty ? '👥 $memberCount 名船员 · $tags' : '👥 $memberCount 名船员',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 12,
-                            color: AppColors.sub,
+                            color: AppColors.textTertiary,
                           ),
                         ),
                       ),
@@ -285,7 +310,7 @@ class _GroupPageState extends State<GroupPage> {
                           padding: EdgeInsets.only(top: 40),
                           child: Center(
                             child: Text('还没有消息，来说第一句吧',
-                                style: TextStyle(color: AppColors.sub, fontSize: 13)),
+                                style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
                           ),
                         ),
                       ..._msgs.map((m) => _MsgBubble(
@@ -317,17 +342,16 @@ class _GroupPageState extends State<GroupPage> {
                         decoration: BoxDecoration(
                           color: const Color(0x59000000), // rgba(0,0,0,.35)
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: const Color(0x337DC4FF), // rgba(125,196,255,.2)
-                          ),
+                          border: Border.all(color: AppColors.cardBorder),
+                          boxShadow: AppColors.cardShadow,
                         ),
                         child: TextField(
                           controller: _inputCtrl,
                           onChanged: (t) => setState(() => _canSend = t.trim().isNotEmpty),
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                           decoration: const InputDecoration(
                             hintText: '说点什么...',
-                            hintStyle: TextStyle(color: AppColors.placeholder),
+                            hintStyle: TextStyle(color: AppColors.textHint),
                             border: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 11),
@@ -371,18 +395,30 @@ class _GroupPageState extends State<GroupPage> {
 }
 
 /// H5 .gc-ava — 34×34 圆形金色渐变，深色加粗文字（云端头像缺失时首字兜底）
+/// 点击 → 发送者船长主页（自己头像=访客视角公开预览，与 @跳转规则一致）
 class _Avatar extends StatelessWidget {
   final String? avatar;
   final String name;
-  const _Avatar({this.avatar, required this.name});
+  final int uid;
+  final bool closed; // v2.9.11：已注销成员（点击无响应）
+  const _Avatar({this.avatar, required this.name, required this.uid, this.closed = false});
 
   @override
   Widget build(BuildContext context) {
-    return UserAvatar(
-      avatar: avatar,
-      fallbackText: name,
-      size: 34,
-      fontSize: 14,
+    return GestureDetector(
+      onTap: () {
+        // v2.9.11 账号注销：已注销成员点击无响应
+        if (closed) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => UserProfilePage(uid: uid)),
+        );
+      },
+      child: UserAvatar(
+        avatar: avatar,
+        fallbackText: name,
+        size: 34,
+        fontSize: 14,
+      ),
     );
   }
 }
@@ -413,24 +449,25 @@ class _MsgBubble extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                     decoration: BoxDecoration(
-                      gradient: AppColors.mineBubbleGradient,
+                      gradient: AppColors.btnGoldGradient, // 己方气泡金色（既定规范）
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: const Color(0x4D7DC4FF), // rgba(125,196,255,.3)
+                        color: const Color(0x40FFFFFF), // rgba(255,255,255,.25)
                       ),
+                      boxShadow: AppColors.cardShadow,
                     ),
                     child: Text(
                       msg.content,
                       style: const TextStyle(
                         fontSize: 14,
                         height: 1.5,
-                        color: Color(0xFFEAF2FF),
+                        color: AppColors.goldBtnText,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
-                _Avatar(avatar: msg.senderAvatar, name: msg.senderName),
+                _Avatar(avatar: msg.senderAvatar, name: msg.senderName, uid: msg.senderUid, closed: msg.senderClosed),
               ],
             ),
           );
@@ -442,7 +479,7 @@ class _MsgBubble extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _Avatar(avatar: msg.senderAvatar, name: msg.senderName),
+              _Avatar(avatar: msg.senderAvatar, name: msg.senderName, uid: msg.senderUid, closed: msg.senderClosed),
               const SizedBox(width: 8),
               ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxBubbleWidth),
@@ -462,16 +499,17 @@ class _MsgBubble extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
                       decoration: BoxDecoration(
-                        color: AppColors.cardSolid,
+                        color: AppColors.parchment, // 对方气泡浅米色（既定规范）
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.line),
+                        border: Border.all(color: const Color(0x1AFFFFFF)),
+                        boxShadow: AppColors.cardShadow,
                       ),
                       child: Text(
                         msg.content,
                         style: const TextStyle(
                           fontSize: 14,
                           height: 1.5,
-                          color: Color(0xFFEAF2FF),
+                          color: AppColors.ink,
                         ),
                       ),
                     ),

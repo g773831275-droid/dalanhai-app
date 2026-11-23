@@ -28,6 +28,7 @@ Future<String?> showMoreActionsSheet(
         ),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: AppColors.cardShadow,
       ),
       child: SafeArea(
         top: false,
@@ -41,7 +42,7 @@ Future<String?> showMoreActionsSheet(
                 child: Text(
                   '对「$nickname」的操作',
                   style: const TextStyle(
-                      color: AppColors.sub, fontSize: 12, letterSpacing: 1),
+                      color: AppColors.textSecondary, fontSize: 12, letterSpacing: 1),
                 ),
               ),
             ),
@@ -81,7 +82,7 @@ Widget _sheetItem(
   required bool danger,
   required VoidCallback onTap,
 }) {
-  final color = danger ? AppColors.coral : const Color(0xFFE5EFFA);
+  final color = danger ? AppColors.coral : AppColors.textPrimary;
   return Material(
     color: Colors.transparent,
     child: InkWell(
@@ -126,12 +127,12 @@ Future<bool?> showBlockConfirmDialog(BuildContext context) {
       content: const Text(
         '拉黑后将无法查看对方内容、对方也无法查看和互动你的主页与日志，且会清空双方关注关系',
         style: TextStyle(
-            color: AppColors.sub, fontSize: 13, height: 1.6),
+            color: AppColors.textPrimary, fontSize: 13, height: 1.6),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('取消', style: TextStyle(color: AppColors.sub)),
+          child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
         ),
         TextButton(
           onPressed: () => Navigator.pop(ctx, true),

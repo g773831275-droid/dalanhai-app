@@ -76,6 +76,7 @@ class _AtUserPickerState extends State<AtUserPicker> {
         color: AppColors.deep,
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         borderRadius: BorderRadius.circular(18),
+        boxShadow: AppColors.cardShadow,
       ),
       child: SafeArea(
         top: false,
@@ -100,10 +101,10 @@ class _AtUserPickerState extends State<AtUserPicker> {
                   child: TextField(
                     controller: _searchCtrl,
                     autofocus: true, // v2.9.9：弹窗弹出即聚焦，可直接打字搜索
-                    style: const TextStyle(color: Color(0xFFEAF2FF), fontSize: 14),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   decoration: InputDecoration(
                     hintText: '搜索昵称，选择要 @ 的船长',
-                    hintStyle: const TextStyle(color: AppColors.sub, fontSize: 13),
+                    hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
                     prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.sub),
                     filled: true,
                     fillColor: AppColors.abyss,
@@ -134,7 +135,7 @@ class _AtUserPickerState extends State<AtUserPicker> {
                 : _results.isEmpty
                     ? const Center(
                         child: Text('输入昵称关键词搜索',
-                            style: TextStyle(color: AppColors.sub, fontSize: 12)))
+                            style: TextStyle(color: AppColors.textTertiary, fontSize: 12)))
                     : ListView.separated(
                         padding: const EdgeInsets.symmetric(vertical: 6),
                         itemCount: _results.length,
@@ -157,7 +158,7 @@ class _AtUserPickerState extends State<AtUserPicker> {
                             ),
                             title: Text(u.displayName,
                                 style: const TextStyle(
-                                    color: Color(0xFFEAF2FF), fontSize: 14)),
+                                    color: AppColors.textPrimary, fontSize: 14)),
                             onTap: () =>
                                 Navigator.pop(context, (u.displayName, u.userId)),
                           );

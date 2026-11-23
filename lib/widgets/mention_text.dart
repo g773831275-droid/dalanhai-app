@@ -52,16 +52,18 @@ class _MentionTextState extends State<MentionText> {
   }
 
   /// 点击 @昵称 → 昵称精确匹配 → 跳对方主页（游客可读，无需登录）；
-  /// 找不到/接口异常 → toast
+  /// 找不到/接口异常 → toast；
+  /// v2.9.11 账号注销：命中已注销用户 → 静默不跳转不弹窗（AGENTS.md §12.1.4）
   Future<void> _openMentionProfile(String name) async {
     try {
-      final list = await CloudApi.instance.searchUsers(name);
+      final list = await CloudApi.instance.searchUsers(name, includeClosed: true);
       final match = list.where((u) => u.nickname == name).firstOrNull;
       if (!mounted) return;
       if (match == null) {
         _toast('未找到该船员');
         return;
       }
+      if (match.closed) return; // 已注销用户：无响应（不跳转/不报错/不弹窗）
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => UserProfilePage(uid: match.userId)),
       );

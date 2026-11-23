@@ -110,12 +110,12 @@ class _GrandBlueAppState extends State<GrandBlueApp> {
           ),
           content: const Text(
             '登录后即可发布航海日志，与船员们分享你的航程',
-            style: TextStyle(color: AppColors.sub, fontSize: 13, height: 1.6),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.6),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(navCtx, false),
-              child: const Text('取消', style: TextStyle(color: AppColors.sub)),
+              child: const Text('取消', style: TextStyle(color: AppColors.textSecondary)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(navCtx, true),
@@ -345,7 +345,7 @@ class _TopBar extends StatelessWidget {
                       subtitle,
                       style: const TextStyle(
                         fontSize: 11,
-                        color: AppColors.sub,
+                        color: AppColors.textSecondary,
                         letterSpacing: 1,
                       ),
                     ),

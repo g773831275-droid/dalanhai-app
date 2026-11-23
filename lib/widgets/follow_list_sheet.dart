@@ -160,6 +160,7 @@ class _UserListSheetState extends State<_UserListSheet> {
         ),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: AppColors.cardShadow,
       ),
       child: SafeArea(
         top: false,
@@ -199,7 +200,7 @@ class _UserListSheetState extends State<_UserListSheet> {
     }
     if (_error != null) {
       return Center(
-        child: Text(_error!, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+        child: Text(_error!, style: const TextStyle(color: AppColors.textTertiary, fontSize: 13)),
       );
     }
     if (_list.isEmpty) {
@@ -207,7 +208,7 @@ class _UserListSheetState extends State<_UserListSheet> {
         child: Text(
           '🌊\n这片海域还没有水手',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.sub, fontSize: 13, height: 2),
+          style: TextStyle(color: AppColors.textTertiary, fontSize: 13, height: 2),
         ),
       );
     }
@@ -240,10 +241,10 @@ class _UserListSheetState extends State<_UserListSheet> {
             child: UserAvatar(avatar: e.avatar, fallbackText: e.displayName, size: 40, fontSize: 17),
           ),
           title: Text(e.displayName,
-              style: const TextStyle(color: Color(0xFFE5EFFA), fontSize: 14)),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
           subtitle: label == null
               ? null
-              : Text(label, style: const TextStyle(color: AppColors.sub, fontSize: 11)),
+              : Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
         );
       },
     );
@@ -364,6 +365,7 @@ class _BlocklistSheetState extends State<_BlocklistSheet> {
         ),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         borderRadius: BorderRadius.circular(20),
+        boxShadow: AppColors.cardShadow,
       ),
       child: SafeArea(
         top: false,
@@ -402,7 +404,7 @@ class _BlocklistSheetState extends State<_BlocklistSheet> {
     }
     if (_error != null) {
       return Center(
-        child: Text(_error!, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+        child: Text(_error!, style: const TextStyle(color: AppColors.textTertiary, fontSize: 13)),
       );
     }
     if (_list.isEmpty) {
@@ -410,7 +412,7 @@ class _BlocklistSheetState extends State<_BlocklistSheet> {
         child: Text(
           '🏴‍☠️\n黑名单空空如也，一帆风顺',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.sub, fontSize: 13, height: 2),
+          style: TextStyle(color: AppColors.textTertiary, fontSize: 13, height: 2),
         ),
       );
     }
@@ -438,7 +440,7 @@ class _BlocklistSheetState extends State<_BlocklistSheet> {
             child: UserAvatar(avatar: e.avatar, fallbackText: e.displayName, size: 40, fontSize: 17),
           ),
           title: Text(e.displayName,
-              style: const TextStyle(color: Color(0xFFE5EFFA), fontSize: 14)),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
           trailing: GestureDetector(
             onTap: busy ? null : () => _unblock(e),
             child: Container(

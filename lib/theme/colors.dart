@@ -34,7 +34,20 @@ class AppColors {
   // ── 辅助色 ──
   static const Color sub = Color(0xFF8FA6C4);          // --sub 次要文本
   static const Color subDark = Color(0xFF3d5375);      // dot.off 色
-  static const Color placeholder = Color(0xFF5a7099);  // input placeholder
+  static const Color placeholder = Color(0xFF5A7099);  // input placeholder（对齐 H5 ::placeholder）
+
+  // ── 文字层级（v2.9.12 对齐 H5 原版色板：正文 #EAF2FF / 辅助 sub / hint #5A7099）──
+  static const Color textPrimary = Color(0xFFEAF2FF);   // 主正文（H5 body color）
+  static const Color textSecondary = Color(0xFF8FA6C4); // 次级辅助（H5 --sub）
+  static const Color textTertiary = Color(0xFF8FA6C4);  // 时间/计数弱小字（H5 --sub）
+  static const Color textHint = Color(0xFF5A7099);      // 输入框 hint（H5 ::placeholder）
+
+  // ── 卡片层级（v2.9.12 对齐 H5：sky@12% 细边框 + 0 6px 16px black35% 阴影）──
+  static const Color cardBorder = Color(0x1F7DC4FF);    // rgba(125,196,255,.12)
+  static const Color cardShadowColor = Color(0x59000000); // rgba(0,0,0,0.35)
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(color: cardShadowColor, offset: Offset(0, 6), blurRadius: 16),
+  ];
   static const Color goldBtnText = Color(0xFF2A1A05);  // 金色按钮上的深色文字
   static const Color line = Color(0x17FFFFFF);         // --line rgba(255,255,255,.09)
   static const Color card = Color(0x0DFFFFFF);         // --card rgba(255,255,255,.05)

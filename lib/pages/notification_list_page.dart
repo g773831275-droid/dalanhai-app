@@ -186,7 +186,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(_typeTitle,
-            style: const TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
         actions: [
           TextButton(
@@ -194,7 +194,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
             child: Text('全部已读',
                 style: TextStyle(
                     fontSize: 13,
-                    color: _items.any((n) => !n.read) ? AppColors.gold : AppColors.sub)),
+                    color: _items.any((n) => !n.read) ? AppColors.gold : AppColors.textTertiary)),
           ),
         ],
       ),
@@ -203,7 +203,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
           : groups.isEmpty
               ? const Center(
                   child: Text('暂无消息，等待船员互动',
-                      style: TextStyle(color: AppColors.sub, fontSize: 13)))
+                      style: TextStyle(color: AppColors.textTertiary, fontSize: 13)))
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(14, 8, 14, 40),
                   itemCount: groups.length,
@@ -274,7 +274,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                                 TextSpan(
                                   text: action,
                                   style: const TextStyle(
-                                      color: Color(0xFFE5EFFA), fontSize: 13),
+                                      color: AppColors.textPrimary, fontSize: 13),
                                 ),
                               ],
                             ),
@@ -285,7 +285,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       ),
                       const SizedBox(width: 8),
                       Text(_timeLabel(first.createdAt),
-                          style: const TextStyle(color: AppColors.sub, fontSize: 11)),
+                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 11)),
                     ],
                   ),
                   if (first.postExcerpt != null && first.postExcerpt!.isNotEmpty)
@@ -294,7 +294,7 @@ class _NotificationListPageState extends State<NotificationListPage> {
                       child: Text(first.postExcerpt!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.sub, fontSize: 12)),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                     ),
                 ],
               ),

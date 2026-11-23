@@ -4,6 +4,7 @@ import '../theme/typography.dart';
 import '../data/auth_service.dart';
 import '../data/data_store_provider.dart';
 import '../services/cloud_api.dart';
+import '../services/cloud_models.dart' show kCloudIslandKeys;
 import '../app.dart' show appTabIndex;
 import '../widgets/eula_dialog.dart';
 import 'forgot_password_page.dart';
@@ -147,6 +148,26 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
+  /// v2.9.11：登录成功后回填打卡镜像（login() 会清残留镜像，此处拉云端真实值
+  /// 写回 4 岛 —— 岛屿卡片/航海报统计与云端同源）。静默容错不阻塞登录流程。
+  Future<void> _prefetchCheckinMirror(DataStore store) async {
+    for (final entry in kCloudIslandKeys.entries) {
+      try {
+        final d = await CloudApi.instance.fetchIslandCheckin(entry.value);
+        store.syncIslandCheckins(
+          entry.key,
+          d.checkinDateList,
+          conquered: d.isConquer,
+          continueDays: d.continueDays,
+          maxStreakDays: d.maxStreakDays,
+          totalDays: d.totalDays,
+        );
+      } catch (_) {
+        // 静默：单岛失败不影响其它岛，进详情页时会重新回填
+      }
+    }
+  }
+
   Future<void> _doAuth() async {
     final store = DataStoreProvider.of(context);
 
@@ -165,6 +186,7 @@ class _AuthPageState extends State<AuthPage> {
         if (!mounted) return;
         // 本地登录标记（isLoggedIn = captain != null）
         store.login(captain.displayName, 'phone');
+        _prefetchCheckinMirror(store);
         // v2.9.5：云端档案带头像时回填（login 重建对象会丢 avatar）
         if (captain.avatar.isNotEmpty) store.updateAvatar(captain.avatar);
         if (widget.returnTo == 'island') {
@@ -197,6 +219,7 @@ class _AuthPageState extends State<AuthPage> {
         final captain = await CloudApi.instance.loginByEmail(e, c);
         if (!mounted) return;
         store.login(captain.displayName, 'email');
+        _prefetchCheckinMirror(store);
         // v2.9.5：云端档案带头像时回填（login 重建对象会丢 avatar）
         if (captain.avatar.isNotEmpty) store.updateAvatar(captain.avatar);
         if (widget.returnTo == 'island') {
@@ -225,6 +248,7 @@ class _AuthPageState extends State<AuthPage> {
       final captain = await CloudApi.instance.loginByPassword(n, p);
       if (!mounted) return;
       store.login(captain.displayName, 'password');
+        _prefetchCheckinMirror(store);
       if (captain.avatar.isNotEmpty) store.updateAvatar(captain.avatar);
       if (widget.returnTo == 'island') {
         Navigator.of(context).pop();
@@ -303,7 +327,7 @@ class _AuthPageState extends State<AuthPage> {
                         child: Text.rich(
                           TextSpan(
                             text: '我已阅读并同意 ',
-                            style: const TextStyle(color: AppColors.sub, fontSize: 12),
+                            style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                             children: [
                               WidgetSpan(
                                 child: GestureDetector(
@@ -368,7 +392,7 @@ class _AuthPageState extends State<AuthPage> {
           ),
           alignment: Alignment.center,
           child: Text(label, style: TextStyle(
-            color: active ? AppColors.gold : AppColors.sub,
+            color: active ? AppColors.gold : AppColors.textSecondary,
             fontSize: 14, fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           )),
         ),
@@ -389,15 +413,15 @@ class _AuthPageState extends State<AuthPage> {
       return Column(children: [
         _Field(label: '手机号 · PHONE', child: TextField(
           controller: _phoneCtrl, keyboardType: TextInputType.phone, maxLength: 11,
-          style: const TextStyle(color: AppColors.parchment),
-          decoration: const InputDecoration(hintText: '请输入 11 位手机号', counterText: ''),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: '请输入 11 位手机号', hintStyle: TextStyle(color: AppColors.textHint), counterText: ''),
         )),
         const SizedBox(height: 16),
         _Field(label: '验证码 · CODE', child: Row(children: [
           Expanded(child: TextField(
             controller: _codeCtrl, keyboardType: TextInputType.number, maxLength: 6,
-            style: const TextStyle(color: AppColors.parchment),
-            decoration: const InputDecoration(hintText: '6 位验证码', counterText: ''),
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(hintText: '6 位验证码', hintStyle: TextStyle(color: AppColors.textHint), counterText: ''),
           )),
           const SizedBox(width: 10),
           ElevatedButton(
@@ -412,8 +436,8 @@ class _AuthPageState extends State<AuthPage> {
       return Column(children: [
         _Field(label: '邮箱 · EMAIL', child: TextField(
           controller: _emailCtrl, keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: AppColors.parchment),
-          decoration: const InputDecoration(hintText: 'captain@grandblue.io'),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(hintText: 'captain@grandblue.io', hintStyle: TextStyle(color: AppColors.textHint)),
         )),
         const SizedBox(height: 16),
         // 人机验证（邮箱发码强制要求；算术题 challenge 一次性，点题换新题）
@@ -428,13 +452,14 @@ class _AuthPageState extends State<AuthPage> {
                   color: AppColors.cardSolid,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+                  boxShadow: AppColors.cardShadow,
                 ),
                 alignment: Alignment.centerLeft,
                 child: Text(
                   _captchaQuestion.isEmpty ? '点击获取验证题' : _captchaQuestion,
                   style: TextStyle(
                     fontSize: 14,
-                    color: _captchaQuestion.isEmpty ? AppColors.sub : AppColors.gold,
+                    color: _captchaQuestion.isEmpty ? AppColors.textHint : AppColors.gold,
                   ),
                 ),
               ),
@@ -445,8 +470,8 @@ class _AuthPageState extends State<AuthPage> {
             flex: 3,
             child: TextField(
               controller: _captchaCtrl, keyboardType: TextInputType.number,
-              style: const TextStyle(color: AppColors.parchment),
-              decoration: const InputDecoration(hintText: '计算结果'),
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: const InputDecoration(hintText: '计算结果', hintStyle: TextStyle(color: AppColors.textHint)),
             ),
           ),
         ])),
@@ -454,8 +479,8 @@ class _AuthPageState extends State<AuthPage> {
         _Field(label: '验证码 · CODE', child: Row(children: [
           Expanded(child: TextField(
             controller: _codeCtrl, keyboardType: TextInputType.number, maxLength: 6,
-            style: const TextStyle(color: AppColors.parchment),
-            decoration: const InputDecoration(hintText: '6 位验证码', counterText: ''),
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: const InputDecoration(hintText: '6 位验证码', hintStyle: TextStyle(color: AppColors.textHint), counterText: ''),
           )),
           const SizedBox(width: 10),
           ElevatedButton(
@@ -469,14 +494,14 @@ class _AuthPageState extends State<AuthPage> {
     return Column(children: [
       _Field(label: '账号 · ACCOUNT', child: TextField(
         controller: _acctCtrl,
-        style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '手机/邮箱/账号ID'),
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(hintText: '手机/邮箱/账号ID', hintStyle: TextStyle(color: AppColors.textHint)),
       )),
       const SizedBox(height: 16),
       _Field(label: '密码 · PASSWORD', child: TextField(
         controller: _passCtrl, obscureText: true,
-        style: const TextStyle(color: AppColors.parchment),
-        decoration: const InputDecoration(hintText: '至少 6 位'),
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(hintText: '至少 6 位', hintStyle: TextStyle(color: AppColors.textHint)),
       )),
     ]);
   }
@@ -492,7 +517,7 @@ class _Field extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.sub, fontSize: 12, letterSpacing: 1)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, letterSpacing: 1)),
         const SizedBox(height: 6),
         child,
       ],

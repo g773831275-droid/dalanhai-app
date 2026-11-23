@@ -104,7 +104,7 @@ class _BlacklistPageState extends State<BlacklistPage> {
   void _toast(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           backgroundColor: AppColors.cardSolid,
           behavior: SnackBarBehavior.floating),
     );
@@ -122,7 +122,7 @@ class _BlacklistPageState extends State<BlacklistPage> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text('黑名单管理',
-            style: TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
       body: _buildBody(),
@@ -135,7 +135,7 @@ class _BlacklistPageState extends State<BlacklistPage> {
     }
     if (_error != null) {
       return Center(
-        child: Text(_error!, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+        child: Text(_error!, style: const TextStyle(color: AppColors.textTertiary, fontSize: 13)),
       );
     }
     if (_list.isEmpty) {
@@ -143,7 +143,7 @@ class _BlacklistPageState extends State<BlacklistPage> {
         child: Text(
           '🏴‍☠️\n黑名单空空如也，一帆风顺',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppColors.sub, fontSize: 14, height: 2),
+          style: TextStyle(color: AppColors.textTertiary, fontSize: 14, height: 2),
         ),
       );
     }
@@ -173,11 +173,12 @@ class _BlacklistPageState extends State<BlacklistPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1A7DC4FF)),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.cardShadow,
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+          colors: [Color(0x8C123A6B), Color(0xB30A1F3D)],
         ),
       ),
       child: Row(
@@ -190,7 +191,7 @@ class _BlacklistPageState extends State<BlacklistPage> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(e.displayName,
-                style: const TextStyle(color: Color(0xFFE5EFFA), fontSize: 14)),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
           ),
           GestureDetector(
             onTap: busy ? null : () => _unblock(e),

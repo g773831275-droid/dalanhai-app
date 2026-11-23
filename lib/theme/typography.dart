@@ -57,18 +57,18 @@ class AppTypography {
   static const TextStyle body = TextStyle(
     fontSize: 14,
     height: 1.6,
-    color: AppColors.parchment,
+    color: AppColors.textPrimary,
   );
 
   static const TextStyle bodySub = TextStyle(
     fontSize: 13,
     height: 1.5,
-    color: AppColors.sub,
+    color: AppColors.textSecondary,
   );
 
   static const TextStyle caption = TextStyle(
     fontSize: 11,
-    color: AppColors.sub,
+    color: AppColors.textTertiary,
     letterSpacing: 0.3,
   );
 

@@ -72,7 +72,7 @@ class ProgressGrid extends StatelessWidget {
             style: TextStyle(
               fontSize: 11,
               fontWeight: has ? FontWeight.w700 : FontWeight.w400,
-              color: has ? AppColors.goldBtnText : AppColors.sub,
+              color: has ? AppColors.goldBtnText : AppColors.textTertiary,
             ),
           ),
         );

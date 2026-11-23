@@ -91,7 +91,7 @@ class BottomNav extends StatelessWidget {
 
   Widget _buildTab(BuildContext context, int index) {
     final active = index == currentIndex;
-    final labelColor = active ? AppColors.gold : AppColors.sub;
+    final labelColor = active ? AppColors.gold : AppColors.textSecondary;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
