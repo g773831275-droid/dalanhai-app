@@ -26,12 +26,18 @@ String? cloudIslandToLocal(String? key) {
 
 /// 作者信息（瀑布流/详情/评论通用）
 class CloudAuthor {
-  const CloudAuthor({required this.uid, required this.nickname, this.avatar});
+  const CloudAuthor({
+    required this.uid,
+    required this.nickname,
+    this.avatar,
+    this.closed = false,
+  });
 
   factory CloudAuthor.fromJson(Map<String, dynamic> j) => CloudAuthor(
         uid: (j['uid'] as num).toInt(),
         nickname: (j['nickname'] as String?) ?? '',
         avatar: j['avatar'] as String?,
+        closed: (j['closed'] as bool?) ?? false,
       );
 
   final int uid;
@@ -39,6 +45,9 @@ class CloudAuthor {
 
   /// 头像 OSS 对象 key（null=未设置；渲染走 media/sign keys）
   final String? avatar;
+
+  /// v2.9.11 账号注销：已注销作者（点击头像/昵称不跳转主页，AGENTS.md §12.1.3）
+  final bool closed;
 
   /// 展示名：昵称优先，未设置回退「船长+编号」（后端只回 id，前缀由前端拼接）
   String get displayName => nickname.isNotEmpty ? nickname : '船长$uid';
@@ -223,17 +232,26 @@ class CloudComment {
 
 /// @用户搜索结果（GET /api/users/search）
 class CloudUserSearchItem {
-  const CloudUserSearchItem({required this.userId, required this.nickname, this.avatar});
+  const CloudUserSearchItem({
+    required this.userId,
+    required this.nickname,
+    this.avatar,
+    this.closed = false,
+  });
 
   factory CloudUserSearchItem.fromJson(Map<String, dynamic> j) => CloudUserSearchItem(
         userId: (j['userId'] as num).toInt(),
         nickname: (j['nickname'] as String?) ?? '',
         avatar: j['avatar'] as String?,
+        closed: (j['closed'] as bool?) ?? false,
       );
 
   final int userId;
   final String nickname;
   final String? avatar;
+
+  /// v2.9.11 账号注销：已注销用户（@提及点击命中时静默不跳转，AGENTS.md §12.1.4）
+  final bool closed;
 
   String get displayName => nickname.isNotEmpty ? nickname : '船长$userId';
 }
@@ -511,6 +529,7 @@ class CloudUserProfile {
     this.sailLevel,
     this.showSailLevelTag = false,
     this.isSelf = false,
+    this.closed = false,
     this.following = false,
     required this.stats,
     this.certificates = const [],
@@ -524,6 +543,7 @@ class CloudUserProfile {
         sailLevel: j['sailLevel'] as String?,
         showSailLevelTag: (j['showSailLevelTag'] as bool?) ?? false,
         isSelf: (j['isSelf'] as bool?) ?? false,
+        closed: (j['closed'] as bool?) ?? false,
         following: (j['following'] as bool?) ?? false,
         stats: CloudProfileStats.fromJson(
             (j['stats'] as Map<String, dynamic>?) ?? const {}),
@@ -541,6 +561,9 @@ class CloudUserProfile {
   /// 后台开关 && sail_level 非空 —— false 时前端完全不渲染标签（无空白占位）
   final bool showSailLevelTag;
   final bool isSelf;
+
+  /// v2.9.11 账号注销：closed 用户（主页显示【已注销用户】占位，隐藏关注/发消息操作行）
+  final bool closed;
   final bool following;
   final CloudProfileStats stats;
 
@@ -553,6 +576,7 @@ class CloudUserProfile {
         sailLevel: sailLevel,
         showSailLevelTag: showSailLevelTag,
         isSelf: isSelf,
+        closed: closed,
         following: following,
         stats: CloudProfileStats(
           posts: stats.posts,
@@ -899,6 +923,7 @@ class CloudGroupMessage {
     required this.senderUid,
     required this.senderName,
     this.senderAvatar,
+    this.senderClosed = false,
     required this.content,
     required this.createdAt,
   });
@@ -909,6 +934,7 @@ class CloudGroupMessage {
         senderUid: (j['senderUid'] as num?)?.toInt() ?? 0,
         senderName: (j['senderName'] as String?) ?? '船员',
         senderAvatar: j['senderAvatar'] as String?,
+        senderClosed: (j['senderClosed'] as bool?) ?? false,
         content: (j['content'] as String?) ?? '',
         createdAt: (j['createdAt'] as num?)?.toInt() ?? 0,
       );
@@ -918,6 +944,31 @@ class CloudGroupMessage {
   final int senderUid;
   final String senderName;
   final String? senderAvatar;
+  final bool senderClosed;
   final String content;
   final int createdAt;
+}
+
+/// 大蓝海支持者徽章（GET /api/user/badge）——纯纪念装饰，不附带任何特权/权益
+class CloudSupporterBadge {
+  final bool has;
+  final String badgeId;
+  final String awardedAt;       // 后端本地时间字符串，如 "2026-11-22 00:37"
+  final double totalSupported;  // 累计支持金额（元，PAID reward 单合计；仅徽章详情页本人可见展示）
+
+  const CloudSupporterBadge({
+    required this.has,
+    this.badgeId = '',
+    this.awardedAt = '',
+    this.totalSupported = 0,
+  });
+
+  factory CloudSupporterBadge.fromJson(Map<String, dynamic> j) => CloudSupporterBadge(
+        has: j['has'] == true,
+        badgeId: (j['badgeId'] as String?) ?? '',
+        awardedAt: (j['awardedAt'] as String?) ?? '',
+        totalSupported: (j['totalSupported'] as num?)?.toDouble() ?? 0,
+      );
+
+  static const none = CloudSupporterBadge(has: false);
 }

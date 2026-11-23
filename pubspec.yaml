@@ -58,6 +58,20 @@ dependencies:
   http: ^1.2.2
   http_parser: ^4.1.2
 
+  # 支付宝收银台唤起（App 支付 scheme：alipays://platformapi/startapp，§13 支付契约）
+  url_launcher: ^6.3.1
+
+  # 支付宝原生 App 支付（alipay.trade.app.pay，仅 Android 调用；传 orderString 唤起支付宝 App，
+  # 订单状态以后端 notify + 轮询查单为准，不依赖插件回调；iOS 分支不调用本插件。
+  # 5.3.4：6.0.0 要求 Dart>=3.13，本项目 Dart 3.12.2 用 5.x）
+  tobias: ^5.3.4
+
+  # 苹果 IAP 内购（仅 iOS 调用，Android 不走此链路；flutter.dev 官方插件。
+  # iOS 用 StoreKit1 回退模式，localVerificationData=base64 收据 → 后端 verifyReceipt 验签）
+  in_app_purchase: ^3.3.1
+  # in_app_purchase iOS 平台实现（iap_service 直接 import 以调用 enableStoreKit1）
+  in_app_purchase_storekit: ^0.4.17
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

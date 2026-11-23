@@ -100,9 +100,9 @@ class CloudFeedLoader extends ChangeNotifier {
       }
       posts = r.list;
       reachedEnd = !r.hasMore;
-      // 整页附件签名预热（一次批量换整页图片）
-      unawaited(MediaSignCache.instance
-          .prefetch(posts.map((p) => p.postId).toList()));
+      // 整页附件签名预热（一次批量换整页图片）+ 页内头像 key 批量签名
+      // （v2.9.12：头像批量预热，消除逐 key 请求放大）
+      _prefetchPage(posts);
     } on ApiException catch (e) {
       error = e.message;
       rethrow; // UI 决定回落本地
@@ -134,14 +134,24 @@ class CloudFeedLoader extends ChangeNotifier {
       final known = posts.map((p) => p.postId).toSet();
       posts.addAll(r.list.where((p) => !known.contains(p.postId)));
       reachedEnd = !r.hasMore;
-      unawaited(MediaSignCache.instance
-          .prefetch(r.list.map((p) => p.postId).toList()));
+      _prefetchPage(r.list);
     } on ApiException catch (e) {
       error = e.message; // 追加失败不抛出，保留已有数据
     } finally {
       loadingMore = false;
       notifyListeners();
     }
+  }
+
+  /// 页内预热：帖子附件（按 postId 批量）+ 作者头像（裸 key 批量，≤10/批）
+  void _prefetchPage(List<CloudPost> page) {
+    final cache = MediaSignCache.instance;
+    unawaited(cache.prefetch(page.map((p) => p.postId).toList()));
+    final avatarKeys = page
+        .map((p) => p.author.avatar)
+        .whereType<String>()
+        .toList();
+    if (avatarKeys.isNotEmpty) unawaited(cache.prefetchKeys(avatarKeys));
   }
 
   /// 用已完成的点赞结果同步列表（⚠️ 不再重复调接口 —— 详情页已调用过 toggle，

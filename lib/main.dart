@@ -2,7 +2,30 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 import 'data/data_store.dart';
 import 'services/cloud_api.dart';
+import 'services/cloud_models.dart' show kCloudIslandKeys;
 import 'services/session_store.dart';
+
+/// v2.9.11：登录态会话边界回填打卡镜像（清残留 → 拉云端 4 岛真实值写回）。
+/// 打卡真源按 uid 绑定；本地存档 dalanhai_v2 设备级单份，冷启动恢复登录态时
+/// 必须重置镜像，否则新账号会读到上一账号的打卡统计。单岛失败静默跳过。
+Future<void> refreshCheckinMirror(DataStore store) async {
+  store.resetCheckinMirror();
+  for (final entry in kCloudIslandKeys.entries) {
+    try {
+      final d = await CloudApi.instance.fetchIslandCheckin(entry.value);
+      store.syncIslandCheckins(
+        entry.key,
+        d.checkinDateList,
+        conquered: d.isConquer,
+        continueDays: d.continueDays,
+        maxStreakDays: d.maxStreakDays,
+        totalDays: d.totalDays,
+      );
+    } catch (_) {
+      // 静默：单岛失败不影响其它岛，进详情页时会重新回填
+    }
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +52,9 @@ void main() async {
       if (captain.avatar.isNotEmpty) {
         store.updateAvatar(captain.avatar);
       }
+      // v2.9.11：冷启动恢复登录态（含 name 相同不走 login() 的分支）——
+      // 重置打卡镜像并回填当前 uid 的云端真实值（防跨账号统计残留）
+      await refreshCheckinMirror(store);
     } on ApiException catch (e) {
       if (e.code == 401) {
         // token 失效：自动登出（清本地状态 → 船长闸门重新生效）

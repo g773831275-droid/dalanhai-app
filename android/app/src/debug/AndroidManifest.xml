@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 明文 HTTP 仅限 debug 包（本地联调抓包用）；release/profile 恒走 HTTPS -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

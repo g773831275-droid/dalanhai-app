@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'prefs.dart';
 import 'island_logic.dart' as logic;
@@ -105,7 +107,10 @@ class DataStore extends ChangeNotifier {
   void login(String name, String loginBy) {
     _data.captain = Captain(name: name, loginBy: loginBy, at: DateTime.now().millisecondsSinceEpoch);
     Prefs.addUsedName(name);
-    _persist();
+    // v2.9.11 账号注销配套：本地打卡镜像按会话隔离 —— 登录即清残留
+    // （旧 uid/旧账号的 checkins/cloudTotals 等不再带给新登录账号，云端数据由
+    // auth_page 登录成功后的 4 岛回填写入真实值）
+    resetCheckinMirror();
     notifyListeners();
   }
 
@@ -121,8 +126,21 @@ class DataStore extends ChangeNotifier {
 
   void logout() {
     _data.captain = null;
-    _persist();
+    // v2.9.11：登出同步清打卡镜像（未登录岛屿页显示清零，不残留上一账号数据）
+    resetCheckinMirror();
     notifyListeners();
+  }
+
+  /// v2.9.11：清空打卡相关本地镜像（21 天窗口 + 云端三镜像 + 证书）。
+  /// 登录/登出/账号切换时调用 —— 打卡数据真源在云端（按 uid 绑定），
+  /// 本地存档 dalanhai_v2 是设备级单份，不隔离账号，必须在会话边界重置。
+  void resetCheckinMirror() {
+    _data.checkins.clear();
+    _data.cloudStreaks?.clear();
+    _data.cloudMaxStreaks?.clear();
+    _data.cloudTotals?.clear();
+    _data.certificates.clear();
+    _persist();
   }
 
   /// v2.9.3：服务端"今天"（Asia/Shanghai）—— 日历窗口/选中格唯一时间来源
@@ -274,14 +292,30 @@ class DataStore extends ChangeNotifier {
   }
 
   // ── 持久化 ──
+  // v2.9.12 防抖写盘：此前每次小操作（点赞/发消息/改昵称）都全量 jsonEncode 写盘，
+  // 连续操作时反复整包序列化。合并 400ms 窗口内的写入，失败打印不静默。
+  Timer? _persistDebounce;
+
   void _persist() {
-    Prefs.saveData(_data);
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 400), () {
+      Prefs.saveData(_data).catchError((Object e) {
+        debugPrint('[data-store] persist failed: $e');
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _persistDebounce?.cancel();
+    super.dispose();
   }
 
   /// 重置所有数据（调试用）
   Future<void> clearAll() async {
-    await Prefs.clearAll();
+    _persistDebounce?.cancel(); // 防止防抖定时器在清空后又把旧数据写回去
     _data = AppData();
+    await Prefs.clearAll();
     notifyListeners();
   }
 }

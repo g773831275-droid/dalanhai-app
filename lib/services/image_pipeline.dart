@@ -48,15 +48,17 @@ Future<Uint8List> compressImage(XFile src) async {
     throw const MediaValidationException('图片处理失败，请换一张试试');
   }
   // 仍超 5MB 目标 → 降到 0.70 档再压一次
+  // v2.9.12：对第一档输出字节 compressWithList 二次编码 ——
+  // 此前 compressWithFile(src.path) 会重新读盘+解码原图，白费一次 IO 与解码
   if (out.length > MediaRules.imageTargetBytes) {
-    final Uint8List? retry = await FlutterImageCompress.compressWithFile(
-      src.path,
+    final Uint8List retry = await FlutterImageCompress.compressWithList(
+      out,
       minWidth: MediaRules.imageLongEdge,
       minHeight: MediaRules.imageLongEdge,
       quality: 70,
       format: CompressFormat.jpeg,
     );
-    if (retry != null && retry.isNotEmpty) out = retry;
+    if (retry.isNotEmpty) out = retry;
   }
   // 后端硬上限兜底：>10MB 一律拦截不上传（后端也会 400）
   if (out.length > MediaRules.imageMaxBytes) {

@@ -25,8 +25,10 @@ android {
     }
 
     defaultConfig {
-        // 与 iOS Bundle ID 对齐：com.kaitengguan.dalanhai
-        applicationId = "com.kaitengguan.dalanhai"
+        // Android 与 iOS 包名分离：
+        // iOS Bundle ID = com.kaitengguan.dalanhai（线上存量，勿动）
+        // Android applicationId = com.haohaixingchen.dalanhai（软著登记包名，安卓商店上架用）
+        applicationId = "com.haohaixingchen.dalanhai"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -44,12 +46,8 @@ android {
 
     buildTypes {
         release {
-            // 有 key.properties 时用正式签名，否则降级 debug 签名（仅本地开发用）
-            signingConfig = if (keystorePropertiesFile.exists()) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // 正式包必须用 release 签名（key.properties + jks），禁止降级 debug 签名
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

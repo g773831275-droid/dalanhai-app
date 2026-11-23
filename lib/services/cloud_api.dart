@@ -4,7 +4,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/models.dart';
 import 'cloud_models.dart';
 
 /// 后端统一响应 {code: 0|-1, msg, data}，code != 0 抛 ApiException
@@ -15,6 +17,27 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// 图片上传失败（结构化分类，2026-11-19 排障日志专用）：
+/// failType ∈ risk_limit（risk.js 用户每分钟配额）/ ip_freq_waf（WAF/ESA/nginx
+/// IP 频控层）/ timeout / network / sign_invalid（签名失效）/ file_validate
+/// （文件校验）/ auth_expired / oss_<Code> / other
+/// 仅用于日志分类与用户提示文案选择，不改变上传行为与限流阈值。
+class ImageUploadFailure implements Exception {
+  final String stage; // put_sign | put_oss
+  final String failType;
+  final String message;
+  final int? httpStatus;
+  final String? ossResponse; // OSS XML 或服务端响应体（截断）
+  final int? putSignAt; // put-sign 生成时刻（epoch ms）
+  final int? putStartAt; // PUT 发起时刻（epoch ms）
+
+  ImageUploadFailure(this.stage, this.failType, this.message,
+      {this.httpStatus, this.ossResponse, this.putSignAt, this.putStartAt});
+
+  @override
+  String toString() => 'ImageUploadFailure($stage/$failType): $message';
 }
 
 /// OSS 直传签名（GET /api/oss/policy 出参）
@@ -123,6 +146,25 @@ class CloudApi {
   /// 未注入时每次新建 IO 客户端，与 http.get/post 静态快捷方法等价。
   http.Client? httpClientOverride;
 
+  /// 共享 HTTP 客户端（keep-alive 连接池）：
+  /// 此前每请求新建 Client 用完即关 —— 每次都重新 TCP+TLS 握手，
+  /// 信息流（列表+批量签名+头像签名）密集请求下延迟/耗电放大。
+  /// host 变更（configure 换域名）时旧连接池废弃重建；httpClientOverride 优先。
+  http.Client? _sharedClient;
+  String? _sharedClientHost;
+
+  http.Client _shared() {
+    final String host = Uri.parse(baseUrl ?? '').host;
+    if (_sharedClient != null && _sharedClientHost != host) {
+      _sharedClient!.close();
+      _sharedClient = null;
+    }
+    return _sharedClient ??= () {
+      _sharedClientHost = host;
+      return http.Client();
+    }();
+  }
+
   /// JWT AccessToken（Authorization: Bearer）
   String? token;
 
@@ -149,7 +191,7 @@ class CloudApi {
     final http.Request req = http.Request(method, uri)
       ..headers.addAll(_jsonHeaders);
     if (body != null) req.body = jsonEncode(body);
-    final http.Client client = httpClientOverride ?? http.Client();
+    final http.Client client = httpClientOverride ?? _shared();
     late http.Response res;
     try {
       // GET/POST/PATCH 统一走 Request.send（method 原样发出；PATCH 必须真发 PATCH）
@@ -163,10 +205,9 @@ class CloudApi {
       throw const ApiException('网络不可用，请检查网络后重试');
     } on TimeoutException {
       throw const ApiException('请求超时，请稍后重试');
-    } finally {
-      // 注入的客户端由调用方管理生命周期；默认客户端一次性用完即关
-      if (httpClientOverride == null) client.close();
     }
+    // 共享客户端/注入客户端均不在此关闭：共享池跨请求复用（keep-alive），
+    // 注入客户端由调用方管理生命周期
     if (res.statusCode == 401) {
       // 401 统一态：优先透传后端业务 msg（密码登录的「账号或密码错误」/「账号不存在，
       // 请使用短信/邮箱注册」/「该账号未设置密码」等），解析失败回退默认登录态文案；
@@ -207,17 +248,91 @@ class CloudApi {
   /// v2.9.3：POST Form → PUT 二进制（服务端签名 Authorization/Date/Content-Type），
   /// 规避 multipart 报文畸形 MalformedPOSTRequest（http 包安卓端换行符问题）。
   Future<String> uploadImage(List<int> fileBytes, {required String ext}) async {
-    final data = await _request('GET', '/api/oss/put-sign', query: <String, String>{
-      'type': 'ugc',
-      'media': 'image',
-      'ext': ext,
-      'size': '${fileBytes.length}',
-    }) as Map<String, dynamic>;
-    return _putObject(OssPutSign.fromJson(data), fileBytes);
+    // 2026-11-19 排障日志：失败分类（risk限流/IP频控/超时/签名/文件校验/其他）
+    // 只做异常包装与时间戳记录，上传逻辑本身不变；composer 侧消费结构化信息。
+    final int signAt = DateTime.now().millisecondsSinceEpoch;
+    Map<String, dynamic> data;
+    try {
+      data = await _request('GET', '/api/oss/put-sign', query: <String, String>{
+        'type': 'ugc',
+        'media': 'image',
+        'ext': ext,
+        'size': '${fileBytes.length}',
+      }) as Map<String, dynamic>;
+    } on ApiException catch (e) {
+      throw _classifyImageFailure(e, 'put_sign', putSignAt: signAt);
+    }
+    final int putStart = DateTime.now().millisecondsSinceEpoch;
+    try {
+      return await _putObject(OssPutSign.fromJson(data), fileBytes);
+    } on ApiException catch (e) {
+      throw _classifyImageFailure(e, 'put_oss',
+          putSignAt: signAt, putStartAt: putStart);
+    } catch (e) {
+      throw ImageUploadFailure('put_oss', 'network', 'OSS 直传异常：$e',
+          putSignAt: signAt, putStartAt: putStart);
+    }
   }
 
-  /// 上传视频（仅白名单用户）：put-sign（ext/size/duration 声明）→ PUT 直传。
+  /// 把上传链路的 ApiException 归类为结构化失败（不改变异常语义/行为）：
+  /// - put_sign 阶段：「操作过于频繁」= risk.js 用户每分钟配额（JSON code!=0 429）；
+  ///   「服务响应异常（HTTP 429/403）」= WAF/ESA/nginx 层非 JSON 拦截；
+  ///   401 = 登录态失效（签名未拿到）
+  /// - put_oss 阶段：OSS XML <Code> 精确归类（SignatureDoesNotMatch=签名失效 /
+  ///   EntityTooLarge / InvalidArgument=文件校验 / RequestTimeout=超时 等）
+  ImageUploadFailure _classifyImageFailure(ApiException e, String stage,
+      {int? putSignAt, int? putStartAt}) {
+    final m = e.message;
+    String ft;
+    if (stage == 'put_sign') {
+      if (m.contains('操作过于频繁')) {
+        ft = 'risk_limit';
+      } else if (m.contains('服务响应异常（HTTP 429') ||
+          m.contains('服务响应异常（HTTP 403')) {
+        ft = 'ip_freq_waf';
+      } else if (m.contains('不支持的图片格式') || m.contains('仅支持')) {
+        ft = 'file_validate'; // put-sign 后端 ext 白名单校验
+      } else if (m.contains('超过大小上限') || m.contains('文件过大')) {
+        ft = 'file_validate';
+      } else if (m.contains('超时')) {
+        ft = 'timeout';
+      } else if (m.contains('网络不可用')) {
+        ft = 'network';
+      } else if (e.code == 401) {
+        ft = 'auth_expired';
+      } else {
+        ft = 'other';
+      }
+      return ImageUploadFailure(stage, ft, m, httpStatus: e.code,
+          putSignAt: putSignAt, putStartAt: putStartAt);
+    }
+    // put_oss：OSS XML 响应按 <Code> 归类
+    final codeMatch = RegExp(r'<Code>([^<]+)</Code>').firstMatch(m);
+    final ossCode = codeMatch?.group(1);
+    if (ossCode != null) {
+      ft = switch (ossCode) {
+        'SignatureDoesNotMatch' || 'AccessDenied' => 'sign_invalid',
+        'RequestTimeout' => 'timeout',
+        'EntityTooLarge' || 'InvalidArgument' => 'file_validate',
+        _ => 'oss_$ossCode',
+      };
+    } else if (m.contains('超时')) {
+      ft = 'timeout';
+    } else if (m.contains('大小上限')) {
+      ft = 'file_validate';
+    } else if (m.contains('网络异常')) {
+      ft = 'network';
+    } else {
+      ft = 'other';
+    }
+    return ImageUploadFailure(stage, ft, m,
+        httpStatus: e.code, ossResponse: m, putSignAt: putSignAt,
+        putStartAt: putStartAt);
+  }
+
+  /// 上传视频（仅白名单用户）：put-sign（ext/size/duration 声明）→ PUT 流式直传。
   /// [file] 必须是 prepareVideoForUpload 的转码产物（mp4 + H.264 + AAC）。
+  /// v2.9.12：改为文件流式上传（openRead 边读边发），不再整体 readAsBytes 载入内存。
   Future<String> uploadVideo(File file,
       {required String ext, required int durationSec}) async {
     final int size = await file.length();
@@ -228,7 +343,7 @@ class CloudApi {
       'size': '$size',
       'duration': '$durationSec',
     }) as Map<String, dynamic>;
-    return _putObject(OssPutSign.fromJson(data), await file.readAsBytes());
+    return _putObjectStream(OssPutSign.fromJson(data), file, size);
   }
 
   /// OSS PUT 直传（v2.9.3，替代 POST Form / _postObject）：
@@ -255,7 +370,7 @@ class CloudApi {
       ..bodyBytes = bytes; // body = 纯二进制，无表单
 
     try {
-      final http.StreamedResponse res = await req.send();
+      final http.StreamedResponse res = await _shared().send(req);
       // PUT 成功 200 空体（ETag 头）/ 失败为 XML —— 统一读出便于日志与透出
       final String body = await res.stream.bytesToString();
       _ossDebug('statusCode = ${res.statusCode}');
@@ -274,8 +389,56 @@ class CloudApi {
     }
   }
 
-  /// OSS 直传调试日志（debug 打印、release 自动静默）
-  static void _ossDebug(String msg) => debugPrint('[oss-direct] $msg');
+  /// OSS PUT 流式直传（视频专用，v2.9.12）：
+  /// 与 [_putObject] 签名头同口径（Authorization/Date/Content-Type 原样回传），
+  /// 但 body 用 file.openRead() 流式灌包 —— 大文件不整体进内存。
+  /// 视频体积小、上传慢（蜂窝网络 30MB 可能数十秒），超时放宽到 120s。
+  Future<String> _putObjectStream(OssPutSign s, File file, int size) async {
+    if (size > s.maxSize) {
+      throw ApiException('文件超过大小上限（${s.maxSize} 字节），请压缩后重试');
+    }
+    final Uri uri = Uri.parse('${s.host}/${s.key}');
+    _ossDebug('PUT(stream) $uri bytes=$size');
+
+    final http.StreamedRequest req = http.StreamedRequest('PUT', uri)
+      ..headers['Authorization'] = s.authorization // ⚠️ 原样回传，已参与服务端签名
+      ..headers['Date'] = s.date // ⚠️ 原样回传（服务端时间，免设备时钟偏差）
+      ..headers['Content-Type'] = s.contentType // ⚠️ 已参与签名，不可改
+      ..headers['Content-Length'] = '$size';
+
+    // 边读边发；读文件出错/取消时关 sink，避免请求悬挂
+    file.openRead().listen(
+          req.sink.add,
+          onDone: () => req.sink.close(),
+          onError: (Object e) => req.sink.close(),
+          cancelOnError: true,
+        );
+
+    try {
+      final http.StreamedResponse res =
+          await _shared().send(req).timeout(const Duration(seconds: 120));
+      final String body = await res.stream.bytesToString();
+      _ossDebug('statusCode = ${res.statusCode}');
+      if (body.isNotEmpty) _ossDebug('response body =\n$body');
+      if (res.statusCode >= 300) {
+        throw ApiException('OSS 直传失败（HTTP ${res.statusCode}）：$body');
+      }
+      return s.key;
+    } on ApiException {
+      rethrow;
+    } catch (e, st) {
+      _ossDebug('EXCEPTION: $e\n$st');
+      throw ApiException('OSS 直传网络异常：$e');
+    }
+  }
+
+  /// OSS PUT 直传调试日志（与 _debugLogUserList 同规范：release 包静默）──
+  // debugPrint 本身不被 release tree-shake，必须显式 kReleaseMode 守卫
+  // （日志含 OSS URL / Authorization 前缀 / 错误 XML，不能进 release logcat）
+  static void _ossDebug(String msg) {
+    if (kReleaseMode) return;
+    debugPrint('[oss-direct] $msg');
+  }
 
   // ── 发帖（v2.6.1：多图 attachUrls / 视频 duration；v2.9.2：+island/tags）──
   /// [island] 后端枚举 key（clear-mind/quit-smoke/fitness/early-sleep，可空）
@@ -316,8 +479,10 @@ class CloudApi {
     final Map<int, SignedPostMedia> out = <int, SignedPostMedia>{};
     final urls = (data['urls'] as Map<String, dynamic>?) ?? <String, dynamic>{};
     urls.forEach((postId, v) {
+      final int? id = int.tryParse(postId);
+      if (id == null) return; // 异常 key 防御：跳过，不炸渲染链路
       final m = v as Map<String, dynamic>;
-      out[int.parse(postId)] = SignedPostMedia(
+      out[id] = SignedPostMedia(
         urls: (m['urls'] as List<dynamic>).cast<String>(),
         expiresAt: m['expiresAt'] as int,
       );
@@ -471,10 +636,16 @@ class CloudApi {
   }
 
   /// @用户搜索（GET /api/users/search?q=，昵称模糊，排除自己/拉黑，≤10 条）
-  Future<List<CloudUserSearchItem>> searchUsers(String query) async {
+  /// [includeClosed]=true 时返回已注销用户（closed:true）——仅供正文/评论 @提及
+  /// 点击回查用（命中 closed 前端静默不跳转）；@用户选择弹窗不得传（closed 不被搜索）
+  Future<List<CloudUserSearchItem>> searchUsers(String query,
+      {bool includeClosed = false}) async {
     if (query.trim().isEmpty) return const [];
     final data = await _request('GET', '/api/users/search',
-        query: <String, String>{'q': query.trim()}) as Map<String, dynamic>;
+        query: <String, String>{
+          'q': query.trim(),
+          if (includeClosed) 'includeClosed': '1',
+        }) as Map<String, dynamic>;
     return ((data['list'] as List<dynamic>?) ?? const [])
         .map((e) => CloudUserSearchItem.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -547,11 +718,85 @@ class CloudApi {
     }
   }
 
-  /// 岛屿打卡数据（GET /api/user/island/:islandId，[islandKey] 见 kCloudCheckinIslandKeys）。
+  /// 岛屿打卡数据（GET /api/user/island/:islandId，[islandKey] 见 kCloudCheckinKeys）。
   /// 连续天数/征服判定全部后端计算，前端只展示。
   Future<IslandCheckinData> fetchIslandCheckin(String islandKey) async {
     final data = await _request('GET', '/api/user/island/$islandKey') as Map<String, dynamic>;
     return IslandCheckinData.fromJson(data);
+  }
+
+  // ── 岛屿页 Banner + 支付（AGENTS.md §13 支付契约）──────────
+
+  static const String _bannerCacheKey = 'banner_cache_v1';
+  static const Duration _bannerCacheTtl = Duration(minutes: 10);
+
+  /// Banner 卡片列表（GET /api/banners，游客可读）。
+  /// 本地 10 分钟短缓存：命中直接返回；[forceRefresh]=true（下拉刷新）强制拉取。
+  /// 网络失败回退缓存（无论是否过期）；缓存也无 → 返回 AppBanner.fallback。
+  Future<List<BannerItem>> fetchBanners({bool forceRefresh = false}) async {
+    final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic>? cache;
+    try {
+      final raw = prefs.getString(_bannerCacheKey);
+      if (raw != null) cache = jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      cache = null;
+    }
+    final cachedAt = (cache?['t'] as num?)?.toInt() ?? 0;
+    final fresh = DateTime.now().millisecondsSinceEpoch - cachedAt < _bannerCacheTtl.inMilliseconds;
+    List<BannerItem> parseCache() {
+      final list = (cache?['list'] as List?) ?? const [];
+      return list.map((e) => BannerItem.fromJson(e as Map<String, dynamic>)).toList();
+    }
+
+    if (!forceRefresh && cache != null && fresh) return parseCache();
+    try {
+      final data = await _request('GET', '/api/banners') as List<dynamic>;
+      final list = data.map((e) => BannerItem.fromJson(e as Map<String, dynamic>)).toList();
+      await prefs.setString(
+          _bannerCacheKey,
+          jsonEncode(<String, dynamic>{
+            't': DateTime.now().millisecondsSinceEpoch,
+            'list': data,
+          }));
+      return list;
+    } catch (_) {
+      // 网络失败：有缓存用缓存（哪怕过期），没有用内置兜底卡片
+      if (cache != null && (cache['list'] as List?)?.isNotEmpty == true) return parseCache();
+      return BannerItem.fallback;
+    }
+  }
+
+  /// 支持开发者预下单（POST /api/pay/reward，档位白名单硬校验在后端）
+  Future<PayOrderResult> createRewardOrder(String amount) async {
+    final data = await _request('POST', '/api/pay/reward', body: <String, dynamic>{'amount': amount})
+        as Map<String, dynamic>;
+    return PayOrderResult.fromJson(data);
+  }
+
+  /// 查订单状态（GET /api/pay/order/:outTradeNo）→ UNPAID / PAID / CLOSED / REFUNDED
+  Future<String> fetchOrderStatus(String outTradeNo) async {
+    final data = await _request('GET', '/api/pay/order/$outTradeNo') as Map<String, dynamic>;
+    return (data['status'] as String?) ?? 'UNPAID';
+  }
+
+  /// Apple IAP 预下单（POST /api/pay/apple/order，仅 iOS 调用；productId 白名单与金额映射在服务端）
+  /// 返回 outTradeNo（本地 UNPAID 单，pay_type='apple_iap'）与 amount（服务端映射金额）
+  Future<PayOrderResult> createAppleIapOrder(String productId) async {
+    final data = await _request('POST', '/api/pay/apple/order', body: <String, dynamic>{'productId': productId})
+        as Map<String, dynamic>;
+    return PayOrderResult.fromJson(data);
+  }
+
+  /// Apple IAP 收据验签（POST /api/pay/apple/verify，仅 iOS 调用）
+  /// [outTradeNo] 正常购买传（强校验归属）；恢复购买/补单场景省略（后端按
+  /// 该用户最近一笔同商品 UNPAID IAP 单定位）。返回订单状态（PAID）。
+  Future<String> verifyAppleIapReceipt({String? outTradeNo, required String receipt}) async {
+    final data = await _request('POST', '/api/pay/apple/verify', body: <String, dynamic>{
+      ?outTradeNo: outTradeNo,
+      'receipt': receipt,
+    }) as Map<String, dynamic>;
+    return (data['status'] as String?) ?? 'PAID';
   }
 
   /// 修改昵称（PATCH /api/user/nickname，v1.1：仅自身）。
@@ -633,6 +878,30 @@ class CloudApi {
   Future<CloudUserProfile> fetchUserProfile(int uid) async {
     final data = await _request('GET', '/api/user/$uid/profile') as Map<String, dynamic>;
     return CloudUserProfile.fromJson(data);
+  }
+
+  /// 当前用户支持者徽章持有状态（GET /api/user/badge）。
+  /// 纯纪念装饰标记；未持有/网络失败 → has:false（徽章缺失不影响船长页其余内容）
+  /// 含 totalSupported（本人累计支持，仅自己详情页展示）
+  Future<CloudSupporterBadge> fetchSupporterBadge() async {
+    try {
+      final data = await _request('GET', '/api/user/badge') as Map<String, dynamic>;
+      return CloudSupporterBadge.fromJson(data);
+    } catch (_) {
+      return CloudSupporterBadge.none;
+    }
+  }
+
+  /// 他人支持者徽章持有状态（GET /api/user/:uid/badge）。
+  /// ⚠️ 后端不下发 totalSupported（隐私保护：累计金额仅本人可见），
+  /// 返回值 totalSupported 恒为 0；未持有/网络失败 → has:false
+  Future<CloudSupporterBadge> fetchUserBadge(int uid) async {
+    try {
+      final data = await _request('GET', '/api/user/$uid/badge') as Map<String, dynamic>;
+      return CloudSupporterBadge.fromJson(data);
+    } catch (_) {
+      return CloudSupporterBadge.none;
+    }
   }
 
   /// 某用户发布的日志列表分页（GET /api/user/:uid/posts，只含 pass 帖）
@@ -790,6 +1059,13 @@ class CloudApi {
   Future<void> sendDm({required int toUid, required String content}) async {
     await _request('POST', '/api/user/dm',
         body: <String, dynamic>{'toUid': toUid, 'content': content});
+  }
+
+  /// v2.9.11 账号注销（AGENTS.md §12）：POST /api/account/close
+  /// 匿名化：昵称改【已注销用户】/头像简介清空/关注粉丝双向清空/会话全部吊销；
+  /// 帖子评论私信保留不删；成功后旧 token 即时失效（需重新走登录流程）
+  Future<void> closeAccount() async {
+    await _request('POST', '/api/account/close');
   }
 
   // ── v2.9.10 群聊（6 个固定内置群）─────────────────────────
