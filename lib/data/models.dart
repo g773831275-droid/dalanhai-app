@@ -369,3 +369,74 @@ class Island {
     return null;
   }
 }
+
+/// ── 岛屿页 Banner 卡片数据（后端 /api/banners 动态下发，AGENTS.md §13）──
+/// 本地短时缓存（10 分钟 TTL），后台增删/排序/改 action 后 App 刷新即生效
+class BannerItem {
+  final int id;
+  final String title;
+  final String subtitle;
+  final String buttonText;
+  final String icon;
+  final String theme;       // gold / ocean
+  final String action;      // reward / internal_page / none
+  final String actionValue; // internal_page 路由（预留）
+
+  const BannerItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.buttonText,
+    required this.icon,
+    required this.theme,
+    required this.action,
+    required this.actionValue,
+  });
+
+  factory BannerItem.fromJson(Map<String, dynamic> j) => BannerItem(
+        id: (j['id'] as num?)?.toInt() ?? 0,
+        title: (j['title'] as String?) ?? '',
+        subtitle: (j['subtitle'] as String?) ?? '',
+        buttonText: (j['buttonText'] as String?) ?? '',
+        icon: (j['icon'] as String?) ?? '',
+        theme: (j['theme'] as String?) ?? 'gold',
+        action: (j['action'] as String?) ?? 'none',
+        actionValue: (j['actionValue'] as String?) ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id, 'title': title, 'subtitle': subtitle, 'buttonText': buttonText,
+        'icon': icon, 'theme': theme, 'action': action, 'actionValue': actionValue,
+      };
+
+  /// 网络与缓存全空时的内置兜底卡片（保证岛屿页顶部不空白）
+  static List<BannerItem> get fallback => [
+        BannerItem(
+            id: -1, title: '开服公告',
+            subtitle: '一人公司独立开发 · 支持开发者帮助项目持续运营',
+            buttonText: '支持开发者', icon: '📢', theme: 'gold', action: 'reward', actionValue: ''),
+        BannerItem(
+            id: -2, title: '今日出海',
+            subtitle: '乘风破浪 · 一日一航',
+            buttonText: '', icon: '⛵', theme: 'ocean', action: 'none', actionValue: ''),
+      ];
+}
+
+/// 支付预下单结果（POST /api/pay/reward / /api/pay/order）
+class PayOrderResult {
+  final String outTradeNo;
+  final String amount;
+  final String orderString; // 原样交给支付宝唤起，任何字符不可改（§13 契约）
+
+  const PayOrderResult({
+    required this.outTradeNo,
+    required this.amount,
+    required this.orderString,
+  });
+
+  factory PayOrderResult.fromJson(Map<String, dynamic> j) => PayOrderResult(
+        outTradeNo: (j['outTradeNo'] as String?) ?? '',
+        amount: (j['amount'] as String?) ?? '',
+        orderString: (j['orderString'] as String?) ?? '',
+      );
+}

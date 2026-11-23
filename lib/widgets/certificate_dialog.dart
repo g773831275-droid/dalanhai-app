@@ -92,7 +92,8 @@ class GlassInfoBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: AppColors.cardBorder),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Column(children: children),
     );

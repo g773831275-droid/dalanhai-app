@@ -4,6 +4,7 @@ import '../services/cloud_api.dart';
 import '../services/cloud_models.dart';
 import '../services/session_store.dart';
 import '../services/social_state.dart';
+import '../pages/dm_chat_page.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/cloud_post_card.dart';
@@ -47,6 +48,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
   bool _reachedEnd = false;
   bool _followBusy = false;
   String? _fatal; // 404（用户不存在/双向拉黑）等整页占位
+  CloudSupporterBadge _badge = CloudSupporterBadge.none; // 他人徽章（has 才展示）
 
   @override
   void initState() {
@@ -73,12 +75,19 @@ class _UserProfilePageState extends State<UserProfilePage> {
   /// 乐观值已展示，失败静默，下拉刷新会再次拉取对账）
   Future<void> _loadProfile({bool silent = false}) async {
     try {
-      final p = await _api.fetchUserProfile(widget.uid);
+      // 主页资料 + 他人徽章并行拉取（徽章失败静默 none，不影响主页）
+      final results = await Future.wait([
+        _api.fetchUserProfile(widget.uid),
+        _api.fetchUserBadge(widget.uid),
+      ]);
+      final p = results[0] as CloudUserProfile;
+      final badge = results[1] as CloudSupporterBadge;
       if (!mounted) return;
       // 关注状态写入全局缓存（详情页/主页双向同步）
       FollowState.instance.set(p.uid, p.following);
       setState(() {
         _profile = p;
+        _badge = badge;
         _loadingProfile = false;
       });
     } on ApiException catch (e) {
@@ -249,13 +258,13 @@ class _UserProfilePageState extends State<UserProfilePage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.deep,
-        title: Text(title, style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+        title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: TextField(
           controller: ctrl,
           maxLength: 200,
           autofocus: true,
-          style: const TextStyle(color: Color(0xFFEAF2FF)),
-          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppColors.sub)),
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(hintText: hint, hintStyle: const TextStyle(color: AppColors.textHint)),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
@@ -333,7 +342,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHero(p),
-            if (!p.isSelf) _buildActionRow(p),
+            // v2.9.11 账号注销：closed 用户主页无关注/发消息/··· 操作行（统计已由后端清零）
+            if (!p.isSelf && !p.closed) _buildActionRow(p),
             const SizedBox(height: 14),
             ProfileStatsGrid(
               stats: p.stats,
@@ -342,7 +352,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
             const SizedBox(height: 4),
             ProfileSectionTitle('征服证书 · Certificates'),
-            ProfileCertGallery(certificates: p.certificates),
+            ProfileCertGallery(certificates: p.certificates, badge: _badge, badgeIsSelf: false),
             _buildPostsSection(p),
           ],
         ),
@@ -414,7 +424,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
               if (p.bio != null && p.bio!.trim().isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(p.bio!,
-                    style: const TextStyle(color: AppColors.sub, fontSize: 12.5, height: 1.5)),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.5)),
               ],
             ],
           ),
@@ -459,24 +469,32 @@ class _UserProfilePageState extends State<UserProfilePage> {
             ),
           ),
           const SizedBox(width: 10),
-          // 发消息（本期占位：不新增私信功能，点击引导客服微信）
+          // 发消息 → 进入与该用户的私信会话页（后端 POST /api/user/dm + GET /api/user/dm/:uid/messages）
           Expanded(
             child: GestureDetector(
-              onTap: () => _toast('私信功能即将开放，先添加客服微信 abccba978 一起出海'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => DmChatPage(
+                    peerId: p.uid,
+                    peerNickname: p.nickname ?? '船员',
+                  ),
+                ),
+              ),
               child: Container(
                 height: 40,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0x1A7DC4FF)),
+                  border: Border.all(color: AppColors.cardBorder),
+                  boxShadow: AppColors.cardShadow,
                   gradient: const LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+                    colors: [Color(0x8C123A6B), Color(0xB30A1F3D)],
                   ),
                 ),
                 child: const Text('发消息',
-                    style: TextStyle(color: Color(0xFFE5EFFA), fontSize: 14, fontWeight: FontWeight.w600)),
+                    style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
               ),
             ),
           ),
@@ -490,7 +508,8 @@ class _UserProfilePageState extends State<UserProfilePage> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.line),
+                border: Border.all(color: AppColors.cardBorder),
+                boxShadow: AppColors.cardShadow,
               ),
               child: const Text('···',
                   style: TextStyle(color: AppColors.foam, fontSize: 16, fontWeight: FontWeight.w800)),
@@ -521,7 +540,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text('这片海域还很安静，还没有留下航海日志',
-                  style: TextStyle(color: AppColors.sub, fontSize: 13)),
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
             ),
           )
         else ...[
@@ -538,7 +557,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     : _reachedEnd
                         ? '已经到底啦 · 共 $_postsTotal 条'
                         : '',
-                style: const TextStyle(fontSize: 11, color: AppColors.sub),
+                style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
               ),
             ),
           ),

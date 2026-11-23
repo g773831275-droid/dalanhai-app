@@ -48,6 +48,8 @@ class _CaptainTabState extends State<CaptainTab> {
 
   final ScrollController _scrollCtrl = ScrollController();
   CloudUserProfile? _profile;
+  // 大蓝海支持者徽章（纯纪念装饰；has==true 时征服证书区展示徽章卡片）
+  CloudSupporterBadge _badge = CloudSupporterBadge.none;
 
   // 双 Tab（false=我的日志 / true=点赞的日志）
   bool _likedTab = false;
@@ -152,9 +154,16 @@ class _CaptainTabState extends State<CaptainTab> {
   Future<void> _loadProfile() async {
     try {
       final uid = await _myUid();
-      final p = await CloudApi.instance.fetchUserProfile(uid);
+      // 徽章与主页并行拉取（失败静默降级 has:false，不影响证书区）
+      final results = await Future.wait([
+        CloudApi.instance.fetchUserProfile(uid),
+        CloudApi.instance.fetchSupporterBadge(),
+      ]);
       if (!mounted) return;
-      setState(() => _profile = p);
+      setState(() {
+        _profile = results[0] as CloudUserProfile;
+        _badge = results[1] as CloudSupporterBadge;
+      });
     } on ApiException {
       // 主页数据加载失败静默（未登录/网络异常时保持现值，下次通知再试；
       // 统计/证书保持占位，日志列表独立加载）
@@ -258,7 +267,7 @@ class _CaptainTabState extends State<CaptainTab> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-          content: Text(msg, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+          content: Text(msg, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
           backgroundColor: AppColors.cardSolid,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(milliseconds: 1200)),
@@ -277,6 +286,7 @@ class _CaptainTabState extends State<CaptainTab> {
           color: AppColors.deep,
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
           borderRadius: BorderRadius.circular(18),
+          boxShadow: AppColors.cardShadow,
         ),
         child: SafeArea(
           top: false,
@@ -310,7 +320,7 @@ class _CaptainTabState extends State<CaptainTab> {
         alignment: Alignment.center,
         child: Text(label,
             style: TextStyle(
-                color: color ?? const Color(0xFFEAF2FF),
+                color: color ?? AppColors.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600)),
       ),
@@ -348,9 +358,9 @@ class _CaptainTabState extends State<CaptainTab> {
           builder: (_) => AlertDialog(
             backgroundColor: AppColors.deep,
             title: Text('替换置顶',
-                style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
             content: Text('最多只能置顶1条日志，是否替换置顶？',
-                style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(context, false),
@@ -442,9 +452,9 @@ class _CaptainTabState extends State<CaptainTab> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.deep,
         title: Text('批量删除',
-            style: const TextStyle(color: AppColors.parchment, fontSize: 16)),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
         content: Text('确定删除选中$n条日志？删除后不可恢复',
-            style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -541,7 +551,7 @@ class _CaptainTabState extends State<CaptainTab> {
                 const Center(
                   child: Text(
                     'GRAND BLUE · V1.3',
-                    style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2),
+                    style: TextStyle(color: AppColors.textTertiary, fontSize: 11, letterSpacing: 2),
                   ),
                 ),
               ],
@@ -574,6 +584,7 @@ class _CaptainTabState extends State<CaptainTab> {
           end: Alignment(0.5, 0.5),
           colors: [AppColors.detailStart, AppColors.abyss],
         ),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Column(
         children: [
@@ -671,7 +682,7 @@ class _CaptainTabState extends State<CaptainTab> {
                     if (p?.bio != null && p!.bio!.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(p.bio!,
-                          style: const TextStyle(color: AppColors.sub, fontSize: 12.5, height: 1.5)),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.5)),
                     ],
                   ],
                 ),
@@ -777,7 +788,7 @@ class _CaptainTabState extends State<CaptainTab> {
         child: Center(child: CircularProgressIndicator(color: AppColors.gold)),
       );
     }
-    return ProfileCertGallery(certificates: p.certificates);
+    return ProfileCertGallery(certificates: p.certificates, badge: _badge);
   }
 
   // ── ④ 双 Tab 栏（样式参照船员服务菜单：ocean→deep 渐变 + 蓝描边）──
@@ -787,12 +798,13 @@ class _CaptainTabState extends State<CaptainTab> {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x1A7DC4FF)),
+        border: Border.all(color: AppColors.cardBorder),
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0x99123A6B), Color(0xB30A1F3D)],
+          colors: [Color(0x8C123A6B), Color(0xB30A1F3D)],
         ),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Row(
         children: [
@@ -820,7 +832,7 @@ class _CaptainTabState extends State<CaptainTab> {
           style: TextStyle(
             fontSize: 13,
             fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-            color: active ? AppColors.goldBtnText : const Color(0xFFE5EFFA),
+            color: active ? AppColors.goldBtnText : AppColors.textSecondary,
           ),
         ),
       ),
@@ -841,7 +853,7 @@ class _CaptainTabState extends State<CaptainTab> {
         child: Center(
           child: Text(
             _likedTab ? '还没有点赞过任何航海日志' : '还没有发布过航海日志，点底栏 ＋ 发出第一条',
-            style: const TextStyle(color: AppColors.sub, fontSize: 13),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
         ),
       );
@@ -893,7 +905,7 @@ class _CaptainTabState extends State<CaptainTab> {
                   : (_likedTab ? _likedReachedEnd : _myReachedEnd)
                       ? '已经到底啦 · 共 $total 条'
                       : '',
-              style: const TextStyle(fontSize: 11, color: AppColors.sub),
+              style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
             ),
           ),
         ),
@@ -911,6 +923,7 @@ class _CaptainTabState extends State<CaptainTab> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.35)),
         color: AppColors.deep.withValues(alpha: 0.6),
+        boxShadow: AppColors.cardShadow,
       ),
       child: Row(
         children: [

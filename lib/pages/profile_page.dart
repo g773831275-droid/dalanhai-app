@@ -117,7 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.parchment),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text('个人资料', style: TextStyle(color: AppColors.parchment, fontSize: 17, fontWeight: FontWeight.w700)),
+        title: const Text('个人资料', style: TextStyle(color: AppColors.textPrimary, fontSize: 17, fontWeight: FontWeight.w700)),
         centerTitle: true,
       ),
       body: _loading
@@ -125,7 +125,7 @@ class _ProfilePageState extends State<ProfilePage> {
           : ListView(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
               children: [
-                const Text('昵称 · NICKNAME', style: TextStyle(color: AppColors.sub, fontSize: 11, letterSpacing: 2)),
+                const Text('昵称 · NICKNAME', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, letterSpacing: 2)),
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -138,14 +138,15 @@ class _ProfilePageState extends State<ProfilePage> {
                           ? const Color(0xFFEF4444)
                           : const Color(0x33E8B84A),
                     ),
+                    boxShadow: AppColors.cardShadow,
                   ),
                   child: TextField(
                     controller: _nickCtrl,
                     maxLength: 12,
-                    style: const TextStyle(color: AppColors.parchment, fontSize: 15),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
                     decoration: const InputDecoration(
                       hintText: '1-12 字符，留空保存 = 清空昵称',
-                      hintStyle: TextStyle(color: AppColors.sub, fontSize: 13),
+                      hintStyle: TextStyle(color: AppColors.textHint, fontSize: 13),
                       counterText: '',
                       border: InputBorder.none,
                     ),
@@ -175,7 +176,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 const SizedBox(height: 6),
                 const Text(
                   '未设置昵称时将展示「船长+编号」；修改后帖子、评论、船长页实时生效',
-                  style: TextStyle(color: AppColors.sub, fontSize: 11, height: 1.6),
+                  style: TextStyle(color: AppColors.textTertiary, fontSize: 11, height: 1.6),
                 ),
                 const SizedBox(height: 24),
                 SizedBox(

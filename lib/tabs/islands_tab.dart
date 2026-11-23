@@ -3,55 +3,71 @@ import '../theme/colors.dart';
 import '../data/models.dart';
 import '../data/data_store_provider.dart';
 import '../pages/island_detail_page.dart';
+import '../widgets/app_banner.dart';
 
-/// 岛屿 Tab — 航海报 + 四岛卡片
-/// 1:1 复刻 H5 renderIslands()
-class IslandsTab extends StatelessWidget {
+/// 岛屿 Tab — 顶部 Banner 轮播（后端动态配置）+ 四岛卡片
+/// 原「今日出海」hero 区已由 Banner 承接（AGENTS.md §13）
+class IslandsTab extends StatefulWidget {
   const IslandsTab({super.key});
+
+  @override
+  State<IslandsTab> createState() => _IslandsTabState();
+}
+
+class _IslandsTabState extends State<IslandsTab> {
+  final GlobalKey<AppBannerState> _bannerKey = GlobalKey<AppBannerState>();
 
   @override
   Widget build(BuildContext context) {
     final store = DataStoreProvider.of(context);
 
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _VoyageHero(
-          totalConquered: store.totalCheckins,
-          maxStreak: store.maxStreak,
-        )),
-        SliverToBoxAdapter(child: _SectionTitle('你的岛屿 · Your Islands')),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-          sliver: SliverList.separated(
-            itemCount: Island.all.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, i) {
-              final island = Island.all[i];
-              final s = store.streakOf(island.id);
-              final done = store.isCheckedToday(island.id);
-              final total = store.totalDaysOf(island.id);
-              final certified = store.hasCert(island.id);
+    return RefreshIndicator(
+      color: AppColors.gold,
+      backgroundColor: AppColors.cardSolid,
+      // 下拉刷新：强制拉取最新 Banner 配置（后台改卡片/排序后刷新即生效）
+      onRefresh: () => _bannerKey.currentState?.refresh() ?? Future.value(),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: AppBanner(
+            key: _bannerKey,
+            totalConquered: store.totalCheckins,
+            maxStreak: store.maxStreak,
+          )),
+          SliverToBoxAdapter(child: _SectionTitle('你的岛屿 · Your Islands')),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            sliver: SliverList.separated(
+              itemCount: Island.all.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, i) {
+                final island = Island.all[i];
+                final s = store.streakOf(island.id);
+                final done = store.isCheckedToday(island.id);
+                final total = store.totalDaysOf(island.id);
+                final certified = store.hasCert(island.id);
 
-              return _IslandCard(
-                island: island,
-                streak: s,
-                totalDays: total,
-                doneToday: done,
-                certified: certified,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => IslandDetailPage(island: island),
+                return _IslandCard(
+                  island: island,
+                  streak: s,
+                  totalDays: total,
+                  doneToday: done,
+                  certified: certified,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => IslandDetailPage(island: island),
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
-        SliverToBoxAdapter(child: _CreateCard(
-          onTap: () => _showToast(context, '开辟新航线', '自定义岛屿功能即将上线，关注后续版本'),
-        )),
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
-      ],
+          SliverToBoxAdapter(child: _CreateCard(
+            onTap: () => _showToast(context, '开辟新航线', '自定义岛屿功能即将上线，关注后续版本'),
+          )),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
     );
   }
 
@@ -61,7 +77,7 @@ class IslandsTab extends StatelessWidget {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.cardSolid,
         title: Text(title, style: const TextStyle(color: AppColors.goldBright, fontSize: 18, fontWeight: FontWeight.w800)),
-        content: Text(text, style: const TextStyle(color: AppColors.sub, fontSize: 13)),
+        content: Text(text, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -71,173 +87,6 @@ class IslandsTab extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── 航海报 — 对应 H5 .voyage-hero ──
-class _VoyageHero extends StatelessWidget {
-  final int totalConquered;
-  final int maxStreak;
-
-  const _VoyageHero({required this.totalConquered, required this.maxStreak});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Stack(
-          children: [
-            // 1. 主体：双层渐变背景（径向+线性）+ 边框 + 阴影
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: const LinearGradient(
-                    begin: Alignment(-0.5, -0.5),
-                    end: Alignment(0.5, 0.5),
-                    colors: [AppColors.heroStart, AppColors.deep, AppColors.abyss],
-                    stops: [0.0, 0.6, 1.0],
-                  ),
-                  border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      blurRadius: 30,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // 2. 径向金色光晕叠层（顶部中心 → 透明 55%）
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
-                  gradient: RadialGradient(
-                    center: const Alignment(0, -1.2),
-                    radius: 0.9,
-                    colors: [
-                      AppColors.gold.withValues(alpha: 0.18),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.55],
-                  ),
-                ),
-              ),
-            ),
-            // 3. 内容（eyebrow + title + desc 左对齐）— non-positioned 决定 Stack 尺寸
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'CHAPTER · ${DateTime.now().year}',
-                    style: TextStyle(
-                      fontFamily: 'Cinzel',
-                      fontSize: 11,
-                      letterSpacing: 3,
-                      color: AppColors.gold.withValues(alpha: 0.85),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  // 标题渐变文字 #fff → #BFE3FF
-                  ShaderMask(
-                    shaderCallback: (b) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.white, AppColors.foam],
-                    ).createShader(b),
-                    child: const Text(
-                      '今日出海',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '已征服 $totalConquered 次 · 最长连续 $maxStreak 天',
-                    style: const TextStyle(fontSize: 12, color: AppColors.sub),
-                  ),
-                ],
-              ),
-            ),
-            // 4. 帆船 emoji 右上角（H5 right:14px top:14px，相对 banner 容器）
-            // 必须放在外层 Stack 才能相对整个 banner（不是 Padding 内容）
-            Positioned(
-              right: 14,
-              top: 14,
-              child: const Text(
-                '⛵',
-                style: TextStyle(
-                  fontSize: 44,
-                  height: 1,
-                  shadows: [
-                    Shadow(color: Color(0x80000000), blurRadius: 8, offset: Offset(0, 4)),
-                  ],
-                ),
-              ),
-            ),
-            // 5. 底部波浪 SVG（只在底部 44px 范围内，半透明融入 banner）
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: 44,
-              child: CustomPaint(
-                painter: _WavePainter(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 底部波浪 — 对应 H5 .waves SVG
-/// 两条波浪 path，不同透明度
-class _WavePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 第一条波：opacity .25
-    final paint1 = Paint()..color = AppColors.sky.withValues(alpha: 0.25);
-    final path1 = Path();
-    path1.moveTo(0, 20);
-    // M0 20 Q 50 0 100 20 T 200 20 T 300 20 T 400 20 V44 H0 Z
-    final w = size.width;
-    final seg = w / 4;
-    path1.quadraticBezierTo(seg * 0.5, 0, seg, 20);
-    for (int i = 1; i < 4; i++) {
-      path1.quadraticBezierTo(seg * (i + 0.5), 40, seg * (i + 1), 20);
-    }
-    path1.lineTo(w, size.height);
-    path1.lineTo(0, size.height);
-    path1.close();
-    canvas.drawPath(path1, paint1);
-
-    // 第二条波：opacity .4
-    final paint2 = Paint()..color = AppColors.sky.withValues(alpha: 0.4);
-    final path2 = Path();
-    path2.moveTo(0, 28);
-    path2.quadraticBezierTo(seg * 0.5, 12, seg, 28);
-    for (int i = 1; i < 4; i++) {
-      path2.quadraticBezierTo(seg * (i + 0.5), 44, seg * (i + 1), 28);
-    }
-    path2.lineTo(w, size.height);
-    path2.lineTo(0, size.height);
-    path2.close();
-    canvas.drawPath(path2, paint2);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── 段落标题 — 对应 H5 .section-title ──
@@ -312,14 +161,8 @@ class _IslandCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           gradient: AppColors.islandCardGradient,
-          border: Border.all(color: AppColors.sky.withValues(alpha: 0.14)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
+          border: Border.all(color: AppColors.cardBorder),
+          boxShadow: AppColors.cardShadow,
         ),
         child: Stack(
           children: [
@@ -398,7 +241,7 @@ class _IslandCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Text(
                             doneToday ? '今日已打卡 · 累计 $totalDays 天' : '今日未打卡',
-                            style: const TextStyle(fontSize: 11, color: AppColors.sub),
+                            style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
                           ),
                         ],
                       ),
@@ -522,6 +365,7 @@ class _CreateCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.gold.withValues(alpha: 0.35), width: 1.5, style: BorderStyle.solid),
+          boxShadow: AppColors.cardShadow,
         ),
         alignment: Alignment.center,
         child: const Text(
