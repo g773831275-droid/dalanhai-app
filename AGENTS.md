@@ -1148,4 +1148,24 @@ curl -X POST http://127.0.0.1:3000/api/login \
 ### 14.5 隐私政策文案同步位置
 
 1. App 内弹窗：`lib/pages/account_settings_page.dart` → `_showPrivacy`（用户侧简版，覆盖 14.1~14.4 要点）
-2. 商店隐私政策 URL / 隐私申报表：上架时按本章逐项勾选（收集类型 = 账号/内容/订单/风控；第三方 = 阿里云、支付宝、Apple）
+2. 对外公示网页：**dalanhai-privacy-public** 独立仓库（github.com/g773831275-droid/dalanhai-privacy-public，GitHub Pages：https://g773831275-droid.github.io/dalanhai-privacy-public/privacy-policy.html）——App Store Connect「隐私政策 URL」指向该页。V2.0（2026-11-23）已按本章口径全面重写并上线生效；App Store Connect 隐私政策 URL **无需变更**（URL 不变，内容已更新）
+3. 三层分离纪律：**AGENTS.md §14 = 内部开发规范（唯一基准，含表名字段）** / **privacy-policy.html = 对外公示文案（用户可读，禁止出现内部路径/表名/实现细节）** / **App Store 隐私申报 = ASC 勾选表（按 14.6 映射填报）**。数据流变更时三层同步更新
+
+### 14.6 App Store「隐私详情」（App Privacy）申报勾选映射
+
+> ASC 后台 App Privacy 页面按此表填报（2026-11-23 口径，替代旧版「未收集数据」声明）。
+> 总原则：所有类别均 **不用于跟踪（Tracking = No）**（App 不接入任何广告/跨 App 追踪 SDK）；所有类别均 **与用户身份关联（Linked = Yes）**（账号体系实名化）；用途统一为 **App Functionality**。
+
+| Apple 数据分类 | 数据类型 | Linked | Tracking | 用途 | 对应本项目数据 |
+|---|---|---|---|---|---|
+| Contact Info（联系信息） | Email Address | Yes | No | App Functionality | 邮箱登录标识、找回密码 |
+| Contact Info | Phone Number | Yes | No | App Functionality | 手机号登录标识、短信验证码 |
+| Identifiers（标识符） | User ID | Yes | No | App Functionality | 用户 uid（订单/内容归属） |
+| User Content（用户内容） | Other User Content | Yes | No | App Functionality | 帖子文字/媒体、评论、私信、群聊、打卡记录 |
+| Purchases（购买） | Purchase History | Yes | No | App Functionality | 订单号/商品/金额/交易号/IAP 收据 |
+| Usage Data（使用数据） | Product Interaction | Yes | No | App Functionality | 点赞/关注/拉黑等互动记录 |
+| Diagnostics（诊断） | Other Diagnostic Data | Yes | No | App Functionality | IP 地址（限流风控）、人机验证记录、异常行为标记 |
+
+**不申报**（当前不收集）：Location、Health、Financial Info（我们接触不到支付宝/苹果侧的卡号余额等支付工具信息）、Browsing/Search History、Sensitive Info、Contacts、Crash Data（未接崩溃收集 SDK）。
+
+**变更纪律**：接入崩溃收集 SDK、广告 SDK、统计 SDK 或新增收集类别时，先更新 14.1 → 同步 privacy-policy.html → 再按本表更新 ASC 申报。
