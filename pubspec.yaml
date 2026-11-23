@@ -16,7 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+# 版本号：2.0+1（2026-11-23 由 1.0.0+1 升级——H5 旧版已批准 1.0，Flutter 全量重写
+# + 新增 IAP 属重大迭代；CFBundleShortVersionString=2.0 需 > 已批准的 1.0（苹果 90062）；
+# 同版本下重打包需递增构建号 +2/+3；ASC 侧需新建 2.0 版本保持一致）
+version: 2.0+1
 
 environment:
   sdk: ^3.12.2
